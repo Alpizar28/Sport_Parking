@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sport Parking - Reservation System (MVP)
 
-## Getting Started
+A Next.js 14 Web Application for managing reservation of soccer fields and event spaces. Features a modern Glassmorphism UI, real-time availability checks, and secure payment integration flows.
 
-First, run the development server:
+## Tech Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Framework**: Next.js 14 (App Router)
+- **Database**: Supabase (PostgreSQL)
+- **Styling**: TailwindCSS 4, Custom CSS (Glassmorphism)
+- **Auth**: Supabase Auth (SSR)
+- **Payments**: Yappy Integration (Structure ready)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Comparison with other solutions
+This project prioritizes UX with a clean, step-by-step reservation flow and strict backend validation for hourly blocks.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Setup Instructions
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/your-username/sport-parking.git
+    cd sport-parking
+    ```
 
-## Learn More
+2.  **Install Dependencies**:
+    ```bash
+    npm install
+    ```
 
-To learn more about Next.js, take a look at the following resources:
+3.  **Environment Variables**:
+    Copy the example file and fill in your Supabase details.
+    ```bash
+    cp .env.example .env.local
+    ```
+    Populate `.env.local` with your `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, etc.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+4.  **Database Setup**:
+    Run the SQL scripts provided in `supabase_schema.sql` (if available) in your Supabase SQL Editor to create the necessary tables (`reservations`, `resources`, etc.) and Security Policies (RLS).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+5.  **Run Locally**:
+    ```bash
+    npm run dev
+    ```
+    Open [http://localhost:3000](http://localhost:3000).
 
-## Deploy on Vercel
+## Security Note
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This repository does **NOT** contain real production keys or payment secrets.
+- Payment flows use mock URLs or placeholder logic.
+- Admin capabilities require a Service Role key which must be kept secret in your local environment.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+MIT
