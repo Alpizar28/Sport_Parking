@@ -6,7 +6,7 @@ import { ReactNode } from 'react';
 // but still need the glass/light theme (like Dashboard).
 export default function AppLayout({ children }: { children: ReactNode }) {
     return (
-        <div className="min-h-screen relative font-sans text-gray-900">
+        <div className="min-h-screen relative font-sans text-white">
             {/* Background Layer */}
             <div className="fixed inset-0 -z-10 bg-black">
                 {/* Fallback gradient if image fails */}

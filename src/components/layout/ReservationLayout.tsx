@@ -41,28 +41,29 @@ export default function ReservationLayout({
             </div>
 
             {/* Header */}
-            <header className="sticky top-0 z-50 glass-panel border-b-0 border-white/20 px-6 py-4 flex items-center justify-between">
+            <header className="sticky top-0 z-50 bg-black/50 backdrop-blur-md border-b border-white/5 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     {showBack && (
                         <button
                             onClick={handleBack}
-                            className="p-2 rounded-full hover:bg-black/5 transition-colors text-gray-700"
+                            className="p-2 rounded-full hover:bg-white/10 transition-colors text-muted-foreground hover:text-white"
                         >
                             <ArrowLeft className="w-6 h-6" />
                         </button>
                     )}
                     <div>
-                        <h1 className="text-xl font-bold text-gray-900 leading-none">{title}</h1>
-                        {subtitle && <p className="text-sm text-gray-600 font-medium">{subtitle}</p>}
+                        <h1 className="text-xl font-bold text-white leading-none tracking-tight">{title}</h1>
+                        {subtitle && <p className="text-sm text-muted-foreground font-medium">{subtitle}</p>}
                     </div>
                 </div>
 
                 <Link
-                    href="/dashboard"
-                    className="p-2 rounded-full hover:bg-red-500/10 text-gray-500 hover:text-red-600 transition-colors"
-                    title="Cancelar y Salir"
+                    href="/"
+                    className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-white/5 text-sm font-medium text-muted-foreground hover:text-white transition-colors border border-transparent hover:border-white/10"
+                    title="Volver al Inicio"
                 >
-                    <X className="w-6 h-6" />
+                    <span className="hidden sm:inline">Volver al Inicio</span>
+                    <X className="w-5 h-5" />
                 </Link>
             </header>
 

@@ -78,15 +78,30 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center p-8">
-            <div className="w-full max-w-md space-y-8 bg-neutral-900 p-8 rounded-xl border border-neutral-800">
+
+        <div className="flex min-h-screen items-center justify-center p-8 bg-background relative">
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
+                <div className="absolute bottom-0 right-1/2 translate-x-1/2 w-[800px] h-[600px] bg-emerald-900/10 blur-[120px] rounded-full pointer-events-none" />
+            </div>
+
+            <Link href="/" className="absolute top-6 left-6 md:top-8 md:left-8 text-sm font-medium text-muted-foreground hover:text-white flex items-center gap-2 transition-colors group">
+                <div className="p-2 rounded-full bg-secondary group-hover:bg-primary group-hover:text-black transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                </div>
+                Volver al Inicio
+            </Link>
+
+            <div className="w-full max-w-md space-y-8 bg-card p-8 rounded-2xl border border-white/5 shadow-2xl relative backdrop-blur-sm">
                 <div>
-                    <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-white">
+                    <div className="mx-auto w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20 mb-6">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" /></svg>
+                    </div>
+                    <h2 className="text-center text-3xl font-bold tracking-tight text-white">
                         Crear Cuenta
                     </h2>
-                    <p className="mt-2 text-center text-sm text-neutral-400">
+                    <p className="mt-2 text-center text-sm text-muted-foreground">
                         o{' '}
-                        <Link href="/login" className="font-medium text-emerald-500 hover:text-emerald-400 focus:outline-none focus:underline transition-all">
+                        <Link href="/login" className="font-medium text-primary hover:text-emerald-400 focus:outline-none focus:underline transition-all">
                             inicia sesión si ya tienes cuenta
                         </Link>
                     </p>
@@ -100,7 +115,7 @@ export default function RegisterPage() {
 
                     <div className="space-y-5">
                         <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-neutral-300 mb-1">
+                            <label htmlFor="email" className="block text-sm font-bold text-muted-foreground mb-1.5 uppercase text-xs tracking-wider">
                                 Correo Electrónico
                             </label>
                             <input
@@ -112,9 +127,9 @@ export default function RegisterPage() {
                                 disabled={loading}
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className={`block w-full rounded-md border-0 bg-neutral-800 py-3 text-white ring-1 ring-inset placeholder:text-neutral-500 focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6 px-4 transition-colors ${fieldErrors.email
-                                        ? 'ring-red-500 focus:ring-red-500'
-                                        : 'ring-neutral-700 focus:ring-emerald-500'
+                                className={`block w-full rounded-lg border bg-secondary/50 py-3 text-white ring-0 placeholder:text-muted-foreground/40 focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6 px-4 transition-all ${fieldErrors.email
+                                    ? 'border-destructive focus:ring-destructive'
+                                    : 'border-white/5 focus:border-primary/50 focus:ring-primary/50'
                                     } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 placeholder="tu@email.com"
                             />
@@ -122,7 +137,7 @@ export default function RegisterPage() {
                         </div>
 
                         <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-neutral-300 mb-1">
+                            <label htmlFor="password" className="block text-sm font-bold text-muted-foreground mb-1.5 uppercase text-xs tracking-wider">
                                 Contraseña
                             </label>
                             <input
@@ -134,9 +149,9 @@ export default function RegisterPage() {
                                 disabled={loading}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className={`block w-full rounded-md border-0 bg-neutral-800 py-3 text-white ring-1 ring-inset placeholder:text-neutral-500 focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6 px-4 transition-colors ${fieldErrors.password
-                                        ? 'ring-red-500 focus:ring-red-500'
-                                        : 'ring-neutral-700 focus:ring-emerald-500'
+                                className={`block w-full rounded-lg border bg-secondary/50 py-3 text-white ring-0 placeholder:text-muted-foreground/40 focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6 px-4 transition-all ${fieldErrors.password
+                                    ? 'border-destructive focus:ring-destructive'
+                                    : 'border-white/5 focus:border-primary/50 focus:ring-primary/50'
                                     } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 placeholder="Mínimo 6 caracteres"
                             />
@@ -144,7 +159,7 @@ export default function RegisterPage() {
                         </div>
 
                         <div>
-                            <label htmlFor="confirm-password" className="block text-sm font-medium text-neutral-300 mb-1">
+                            <label htmlFor="confirm-password" className="block text-sm font-bold text-muted-foreground mb-1.5 uppercase text-xs tracking-wider">
                                 Confirmar Contraseña
                             </label>
                             <input
@@ -156,9 +171,9 @@ export default function RegisterPage() {
                                 disabled={loading}
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
-                                className={`block w-full rounded-md border-0 bg-neutral-800 py-3 text-white ring-1 ring-inset placeholder:text-neutral-500 focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6 px-4 transition-colors ${fieldErrors.confirm
-                                        ? 'ring-red-500 focus:ring-red-500'
-                                        : 'ring-neutral-700 focus:ring-emerald-500'
+                                className={`block w-full rounded-lg border bg-secondary/50 py-3 text-white ring-0 placeholder:text-muted-foreground/40 focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6 px-4 transition-all ${fieldErrors.confirm
+                                    ? 'border-destructive focus:ring-destructive'
+                                    : 'border-white/5 focus:border-primary/50 focus:ring-primary/50'
                                     } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 placeholder="Repite la contraseña"
                             />
@@ -170,18 +185,18 @@ export default function RegisterPage() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className={`group relative flex w-full justify-center rounded-md px-3 py-3 text-sm font-semibold text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 transition-all ${loading
-                                    ? 'bg-emerald-800 cursor-wait'
-                                    : 'bg-emerald-600 hover:bg-emerald-500'
+                            className={`group relative flex w-full justify-center rounded-lg px-3 py-3.5 text-sm font-bold uppercase tracking-widest text-primary-foreground shadow-lg transition-all ${loading
+                                ? 'bg-primary/80 cursor-wait'
+                                : 'bg-primary hover:bg-emerald-400 hover:shadow-primary/30 transform hover:-translate-y-0.5'
                                 }`}
                         >
                             {loading ? (
                                 <span className="flex items-center gap-2">
-                                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <svg className="animate-spin h-4 w-4 text-primary-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-                                    Procesando...
+                                    Creando Cuenta...
                                 </span>
                             ) : 'Registrarse'}
                         </button>

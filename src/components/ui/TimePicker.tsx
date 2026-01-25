@@ -12,9 +12,9 @@ export default function TimePicker({ selectedStartHour, duration, onChange, onDu
     const hours = Array.from({ length: 16 }, (_, i) => i + 8); // 8 to 23
 
     return (
-        <div className="glass-card p-6 space-y-6">
+        <div className="bg-card border border-border p-6 space-y-6 rounded-xl shadow-sm">
             <div>
-                <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Hora de Inicio</label>
+                <label className="block text-sm font-bold text-muted-foreground mb-3 uppercase tracking-wider">Hora de Inicio</label>
                 <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
                     {hours.map(hour => {
                         const isBusy = busyHours.includes(hour);
@@ -28,10 +28,10 @@ export default function TimePicker({ selectedStartHour, duration, onChange, onDu
                                 className={`
                                     py-2 px-1 rounded-lg text-sm font-semibold transition-all border
                                     ${isSelected
-                                        ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                                        ? 'bg-primary border-primary text-primary-foreground shadow-md shadow-primary/20'
                                         : isBusy
-                                            ? 'bg-gray-100 border-transparent text-gray-400 cursor-not-allowed decoration-red-300 line-through'
-                                            : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700 hover:shadow-sm'
+                                            ? 'bg-muted border-transparent text-muted-foreground/50 cursor-not-allowed decoration-destructive line-through'
+                                            : 'bg-secondary border-border text-foreground hover:border-primary/50 hover:text-primary hover:shadow-sm'
                                     }
                                 `}
                             >
@@ -43,7 +43,7 @@ export default function TimePicker({ selectedStartHour, duration, onChange, onDu
             </div>
 
             <div className={`transition-all duration-300 ${selectedStartHour !== null ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
-                <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Duración</label>
+                <label className="block text-sm font-bold text-muted-foreground mb-3 uppercase tracking-wider">Duración</label>
                 <div className="flex gap-3 overflow-x-auto pb-1">
                     {[1, 2, 3, 4].map(dur => {
                         const isSelected = duration === dur;
@@ -56,8 +56,8 @@ export default function TimePicker({ selectedStartHour, duration, onChange, onDu
                                 className={`
                                     flex-1 min-w-[80px] py-3 rounded-lg font-bold text-sm transition-all border
                                     ${isSelected
-                                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-500/20 scale-105'
-                                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                        ? 'bg-accent border-accent text-accent-foreground shadow-md shadow-accent/20 scale-105'
+                                        : 'bg-secondary border-border text-foreground hover:bg-secondary/80'
                                     }
                                 `}
                             >
