@@ -41,8 +41,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return (
         <div className="min-h-screen bg-[#020617] text-foreground font-sans selection:bg-emerald-500/30">
             <AdminSidebar userEmail={user.email!} />
-            <div className="pl-64">
-                <main className="p-8 max-w-7xl mx-auto min-h-screen">
+            <div className="lg:pl-64 pt-16 lg:pt-0 transition-all duration-300">
+                <main className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen">
                     {children}
                 </main>
             </div>
