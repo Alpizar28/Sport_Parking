@@ -66,22 +66,29 @@ export default function ReservationFlow({ initialType }: Props) {
 
 
     // Fetch Availability
-    useEffect(() => {
+    // Fetch Availability
+    const fetchAvailability = async () => {
         if (!date) return;
-        async function fetchAvailability() {
-            setLoading(true);
-            try {
-                const res = await fetch(`/api/availability?date=${date}`);
-                const data = await res.json();
-                if (data.resources) {
-                    setResourcesData(data.resources);
-                }
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setLoading(false);
+        // Keep loading true only if triggered manually or first load, logic inside useEffect handles it.
+        // But for manual call we want to set loading.
+        // We can pass a param or just check if it's already loading?
+        // Let's just set loading.
+        // To avoid flickering on silent refresh we could have a separate state, but "Just before confirm" implies a blocking check.
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/availability?date=${date}`);
+            const data = await res.json();
+            if (data.resources) {
+                setResourcesData(data.resources);
             }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
         }
+    };
+
+    useEffect(() => {
         fetchAvailability();
     }, [date]);
 
@@ -104,6 +111,21 @@ export default function ReservationFlow({ initialType }: Props) {
     const handleCreateHold = async () => {
         setLoading(true);
         setError(null);
+
+        // Security: Refresh availability before confirming
+        try {
+            const resRev = await fetch(`/api/availability?date=${date}`);
+            const dataRev = await resRev.json();
+            if (dataRev.resources) {
+                setResourcesData(dataRev.resources);
+
+                // Optional: Check if selected resources are still available in the new data
+                // This is a client-side convenience check. The backend will enforce it anyway.
+            }
+        } catch (e) {
+            console.error("Failed to refresh availability", e);
+            // Continue anyway, backend is source of truth
+        }
 
         // Timestamps
         const m = startHour!.toString().padStart(2, '0');
@@ -199,10 +221,18 @@ export default function ReservationFlow({ initialType }: Props) {
                         </p>
 
                         <button
-                            onClick={() => router.push('/')}
+                            onClick={() => {
+                                // Reset state to start over
+                                setIsSuccess(false);
+                                setCurrentStep(1);
+                                setStartHour(null);
+                                setSelectedResources([]);
+                                setConfirmedReservation(null);
+                                fetchAvailability(); // Refresh data
+                            }}
                             className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold uppercase tracking-widest rounded-lg transition-all"
                         >
-                            Volver al Inicio
+                            Reservar Nuevamente
                         </button>
                     </div>
                 </div>

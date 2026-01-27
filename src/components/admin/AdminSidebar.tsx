@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, CalendarDays, Clock, LogOut, ChevronUp, User, Globe, Menu, X } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Clock, LogOut, ChevronUp, User, Globe, Menu, X, Calendar } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { signout } from '@/app/auth/actions';
 
 const MENU_ITEMS = [
     { label: 'Resumen', href: '/admin', icon: LayoutDashboard, exact: true },
+    { label: 'Calendario', href: '/admin/calendar', icon: Calendar },
     { label: 'Reservas', href: '/admin/reservations', icon: CalendarDays },
     { label: 'Pendientes', href: '/admin/pending', icon: Clock },
 ];

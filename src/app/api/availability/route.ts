@@ -43,7 +43,7 @@ export async function GET(request: Request) {
         }
 
         // Fetch Resources (using admin just to be safe/consistent, though public read is likely enabled)
-        const { data: resources } = await adminSupabase.from('resources').select('*');
+        const { data: resources } = await adminSupabase.from('resources').select('id, name, type, capacity');
         if (!resources) throw new Error("No resources found");
 
         // Build the response structure (Resources list with their schedule)
