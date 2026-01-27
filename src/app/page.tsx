@@ -161,16 +161,13 @@ export default async function Home() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Space Card 1: PLAY */}
-              <div className="group relative h-[400px] rounded-2xl overflow-hidden cursor-pointer">
+              <div className="group relative h-[400px] rounded-2xl overflow-hidden cursor-pointer border-t-4 border-emerald-500">
                 <div className="absolute inset-0 bg-emerald-900/20 mix-blend-overlay" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
                 <div className="absolute bottom-0 left-0 p-8">
                   <Users className="w-10 h-10 text-emerald-500 mb-4" />
                   <h3 className="text-3xl font-bold text-white uppercase italic tracking-tighter mb-2">Juega</h3>
                   <p className="text-gray-400 text-sm mb-6 line-clamp-2">2 Canchas Sintéticas Pro. Fútbol 5 y 7. Iluminación nocturna y vestuarios.</p>
-                  <span className="inline-flex items-center gap-2 text-emerald-400 font-bold uppercase text-xs tracking-widest group-hover:translate-x-2 transition-transform">
-                    Reservar Cancha <ArrowRight className="w-4 h-4" />
-                  </span>
                 </div>
               </div>
 
@@ -182,23 +179,17 @@ export default async function Home() {
                   <Beer className="w-10 h-10 text-amber-500 mb-4" />
                   <h3 className="text-3xl font-bold text-white uppercase italic tracking-tighter mb-2">Vive</h3>
                   <p className="text-gray-400 text-sm mb-6 line-clamp-2">Zona Lounge con Pantallas 4K. Mesas para tu grupo, audio envolvente y barra.</p>
-                  <span className="inline-flex items-center gap-2 text-amber-400 font-bold uppercase text-xs tracking-widest group-hover:translate-x-2 transition-transform">
-                    Reservar Mesa <ArrowRight className="w-4 h-4" />
-                  </span>
                 </div>
               </div>
 
               {/* Space Card 3: PARK */}
-              <div className="group relative h-[400px] rounded-2xl overflow-hidden cursor-pointer">
+              <div className="group relative h-[400px] rounded-2xl overflow-hidden cursor-pointer border-t-4 border-blue-500">
                 <div className="absolute inset-0 bg-blue-900/20 mix-blend-overlay" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
                 <div className="absolute bottom-0 left-0 p-8">
                   <Car className="w-10 h-10 text-blue-500 mb-4" />
                   <h3 className="text-3xl font-bold text-white uppercase italic tracking-tighter mb-2">Estaciona</h3>
                   <p className="text-gray-400 text-sm mb-6 line-clamp-2">Parqueo privado y seguro dentro del complejo. Tu auto cuidado mientras disfrutas.</p>
-                  <span className="inline-flex items-center gap-2 text-blue-400 font-bold uppercase text-xs tracking-widest group-hover:translate-x-2 transition-transform">
-                    Asegurar Puesto <ArrowRight className="w-4 h-4" />
-                  </span>
                 </div>
               </div>
             </div>
