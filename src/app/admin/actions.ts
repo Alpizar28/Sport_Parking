@@ -1,11 +1,11 @@
 'use server';
 
-import { createClient } from '@/lib/supabase';
+import { createClient, createAdminClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 
-// Helper: Ensure Admin
+// Helper: Ensure Admin Access (Security Check)
 async function requireAdmin() {
-    const supabase = await createClient();
+    const supabase = await createClient(); // Standard client for auth check
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Unauthorized');
 
@@ -18,7 +18,7 @@ async function requireAdmin() {
         .single();
 
     if (profile?.role !== 'ADMIN') throw new Error('Forbidden: Admin Access Required');
-    return supabase;
+    return user;
 }
 
 // Helper: Check and expire outdated pending reservations
@@ -28,7 +28,7 @@ async function checkAndExpireReservations(supabase: any) {
     // Find reservations that are:
     // 1. Status is HOLD or PAYMENT_PENDING
     // 2. Start time has passed
-    // We update them to CANCELLED (or EXPIRED, but user asked for cancelled logic)
+    // We update them to CANCELLED
 
     const { error } = await supabase
         .from('reservations')
@@ -43,7 +43,9 @@ async function checkAndExpireReservations(supabase: any) {
 
 export async function getAdminStats() {
     try {
-        const supabase = await requireAdmin();
+        await requireAdmin(); // Verify permission first
+        const supabase = createAdminClient(); // Use Admin Client for data fetching (Bypass RLS)
+
         const todayStr = new Date().toISOString().split('T')[0];
 
         // Auto-expire check
@@ -61,7 +63,7 @@ export async function getAdminStats() {
         const { count: pendingCount } = await supabase
             .from('reservations')
             .select('*', { count: 'exact', head: true })
-            .in('status', ['HOLD', 'PAYMENT_PENDING']); // Assuming these are 'pending'
+            .in('status', ['HOLD', 'PAYMENT_PENDING']);
 
         // 3. Confirmed Last 7 Days
         const lastWeek = new Date();
@@ -80,7 +82,7 @@ export async function getAdminStats() {
                 reservation_resources(resources(name)),
                 profiles(full_name, email)
             `)
-            .gte('start_time', new Date().toISOString()) // From now onwards
+            .gte('start_time', new Date().toISOString())
             .lt('start_time', `${todayStr}T23:59:59`)
             .neq('status', 'CANCELLED')
             .order('start_time', { ascending: true })
@@ -99,9 +101,9 @@ export async function getAdminStats() {
 }
 
 export async function getAdminReservations(statusFilter?: string, query?: string, page = 1) {
-    const supabase = await requireAdmin();
+    await requireAdmin();
+    const supabase = createAdminClient(); // Bypassing RLS
 
-    // Auto-expire check
     await checkAndExpireReservations(supabase);
 
     const PAGE_SIZE = 20;
@@ -112,8 +114,13 @@ export async function getAdminReservations(statusFilter?: string, query?: string
         .from('reservations')
         .select(`
             *,
-            reservation_resources(resources(name)),
-            profiles(full_name, email)
+            reservation_resources(
+                resources (name)
+            ),
+            profiles (
+                full_name, 
+                email
+            )
         `, { count: 'exact' })
         .order('start_time', { ascending: false })
         .range(from, to);
@@ -122,12 +129,7 @@ export async function getAdminReservations(statusFilter?: string, query?: string
         dbQuery = dbQuery.eq('status', statusFilter);
     }
 
-    // Search is tricky with RLS/joins. 
-    // If 'profiles.email' search is needed, we usually need an inner join or a different structure.
-    // For MVP, if query is provided, we might try to filter by ID if it's a UUID, otherwise it's hard on 'profiles.email' without direct access or flattened view.
-    // We'll skip complex search for now or just search ID.
     if (query) {
-        // Simple text search on reservation fields if applicable, or exact match ID
         if (query.match(/^[0-9a-f]{8}-[0-9a-f]{4}/)) {
             dbQuery = dbQuery.eq('id', query);
         }
@@ -135,36 +137,31 @@ export async function getAdminReservations(statusFilter?: string, query?: string
 
     const { data, count, error } = await dbQuery;
 
-    // Fallback if join fails (likely recursion/RLS on profiles)
     if (error) {
-        console.error('getAdminReservations Error:', JSON.stringify(error, null, 2));
-
-        // Attempt safe fetch WITHOUT profiles join to at least show reservation data
-        const { data: safeData, count: safeCount } = await supabase
-            .from('reservations')
-            .select('*', { count: 'exact' })
-            .order('start_time', { ascending: false })
-            .range(from, to);
-
-        return { data: safeData, count: safeCount };
+        console.error('getAdminReservations Error:', error);
+        return { data: [], count: 0 };
     }
 
     return { data, count };
 }
 
 export async function getPendingReservations() {
-    const supabase = await requireAdmin();
+    await requireAdmin();
+    const supabase = createAdminClient(); // Bypassing RLS
 
-    // Auto-expire check
     await checkAndExpireReservations(supabase);
 
-    // Pending usually means HOLD (waiting payment proof) or PAYMENT_PENDING
     const { data, error } = await supabase
         .from('reservations')
         .select(`
             *,
-            reservation_resources(resources(name)),
-            profiles(full_name, email)
+            reservation_resources(
+                resources (name)
+            ),
+            profiles (
+                full_name, 
+                email
+            )
         `)
         .in('status', ['HOLD', 'PAYMENT_PENDING'])
         .order('start_time', { ascending: true });
@@ -174,30 +171,29 @@ export async function getPendingReservations() {
 }
 
 export async function approveReservation(id: string) {
-    const supabase = await requireAdmin();
-    // Assuming 'CONFIRMED' is the target status
+    await requireAdmin();
+    const supabase = createAdminClient();
+
     const { error } = await supabase
         .from('reservations')
         .update({ status: 'CONFIRMED' })
         .eq('id', id);
 
     if (error) throw new Error(error.message);
-    revalidatePath('/admin');
-    revalidatePath('/admin/reservations');
-    revalidatePath('/admin/pending');
+    revalidatePath('/admin', 'layout');
     return { success: true };
 }
 
 export async function rejectReservation(id: string) {
-    const supabase = await requireAdmin();
+    await requireAdmin();
+    const supabase = createAdminClient();
+
     const { error } = await supabase
         .from('reservations')
         .update({ status: 'CANCELLED' })
         .eq('id', id);
 
     if (error) throw new Error(error.message);
-    revalidatePath('/admin');
-    revalidatePath('/admin/reservations');
-    revalidatePath('/admin/pending');
+    revalidatePath('/admin', 'layout');
     return { success: true };
 }
