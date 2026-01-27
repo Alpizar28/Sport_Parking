@@ -4,10 +4,23 @@ import { signout } from '../auth/actions';
 import AppLayout from '@/components/layout/AppLayout';
 import Link from 'next/link';
 import { Plus, Calendar, LogOut, Ticket, Clock, CheckCircle, XCircle, ArrowRight } from 'lucide-react';
+import UserNav from '@/components/layout/UserNav';
+import { formatTime, formatShortDate } from '@/lib/formatters';
 
 export default async function DashboardPage() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
+
+    // Check for Admin Role
+    let isAdmin = false;
+    if (user) {
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+        if (profile?.role === 'ADMIN') isAdmin = true;
+    }
 
     if (!user) {
         redirect('/login');
@@ -40,12 +53,12 @@ export default async function DashboardPage() {
                             Bienvenido, {user.email?.split('@')[0]}
                         </p>
                     </div>
-                    <form action={signout}>
-                        <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 border border-white/10 text-muted-foreground hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/20 transition-all text-xs font-bold uppercase tracking-widest">
-                            <LogOut className="w-4 h-4" />
-                            Cerrar Sesión
-                        </button>
-                    </form>
+                    <div className="flex items-center gap-4">
+                        <Link href="/" className="text-sm font-bold text-muted-foreground hover:text-white uppercase tracking-wider">
+                            Ir al Inicio
+                        </Link>
+                        <UserNav userEmail={user.email!} isAdmin={isAdmin} />
+                    </div>
                 </header>
 
                 <main className="grid gap-8 md:grid-cols-12">
@@ -145,7 +158,7 @@ export default async function DashboardPage() {
                                                     <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                                                         <div className="flex items-center gap-1">
                                                             <Clock className="w-4 h-4" />
-                                                            {new Date(res.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(res.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            {formatTime(res.start_time)} - {formatTime(res.end_time)}
                                                         </div>
                                                         <div className="flex items-center gap-1">
                                                             <Ticket className="w-4 h-4" />

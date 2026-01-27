@@ -1,22 +1,67 @@
 import Link from "next/link";
 import { ArrowRight, Ticket, Users, Trophy, Tv, Beer, Car, User } from "lucide-react";
 import { createClient } from "@/lib/supabase";
-import LiveSportsExperience from "@/components/home/LiveSportsExperience";
+import ReservationsCard from "@/components/home/ReservationsCard";
+import UserNav from "@/components/layout/UserNav";
 
 export default async function Home() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-
+  // Check for Admin Role
+  let isAdmin = false;
+  if (user) {
+    // Note: If you have recursion issues with profiles, this query might fail without the fix. 
+    // But we fixed it with the security definer function.
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    if (profile?.role === 'ADMIN') isAdmin = true;
+  }
   // Fetch user reservations if logged in
   let userReservations = null;
   if (user) {
-    const { data } = await supabase
+    console.log('[Home] Fetching reservations for user:', user.id);
+    const { data, error } = await supabase
       .from('reservations')
-      .select('*')
+      .select(`
+        id, start_time, end_time, status, total_amount, type, hold_expires_at,
+        reservation_resources!inner(
+          resources(name)
+        )
+      `)
       .eq('user_id', user.id)
       .order('start_time', { ascending: false })
-      .limit(2);
-    userReservations = data;
+      .limit(20);
+
+    if (error) {
+      console.error('[Home] Error fetching reservations (likely recursion/RLS):', error.message || error);
+      // Fallback: Fetch without resources if the join failed
+      console.log('[Home] Attempting fallback fetch...');
+      const { data: fallbackData } = await supabase
+        .from('reservations')
+        .select('id, start_time, end_time, status, total_amount, type, hold_expires_at')
+        .eq('user_id', user.id)
+        .order('start_time', { ascending: false })
+        .limit(20);
+
+      if (fallbackData) {
+        userReservations = fallbackData;
+      }
+    } else {
+      // Filter out expired holds
+      const now = new Date();
+      userReservations = data?.filter(r => {
+        if (r.status === 'HOLD' && r.hold_expires_at) {
+          const expires = new Date(r.hold_expires_at);
+          // If expired, don't show
+          if (expires < now) return false;
+        }
+        return true;
+      }) || [];
+      console.log(`[Home] Reservations found: ${data?.length} (Active: ${userReservations.length})`);
+    }
   }
 
   return (
@@ -36,20 +81,7 @@ export default async function Home() {
           <div className="flex items-center gap-4">
             {user ? (
               <div className="flex items-center gap-6 pl-4 border-l border-white/10">
-                <Link href="/dashboard" className="hidden sm:flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-white transition-colors uppercase tracking-wider group">
-                  <Ticket className="w-4 h-4 text-emerald-500 group-hover:text-emerald-400" />
-                  <span>Mis Reservas</span>
-                </Link>
-
-                <div className="flex items-center gap-3">
-                  <div className="text-right hidden sm:block">
-                    <span className="block text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Conectado como</span>
-                    <span className="block text-sm font-bold text-white max-w-[150px] truncate">{user.email}</span>
-                  </div>
-                  <div className="h-10 w-10 bg-gradient-to-br from-primary to-emerald-700 rounded-full flex items-center justify-center text-black font-bold border border-white/10 shadow-lg">
-                    <User className="w-5 h-5" />
-                  </div>
-                </div>
+                <UserNav userEmail={user.email!} isAdmin={isAdmin} />
               </div>
             ) : (
               <>
@@ -105,44 +137,8 @@ export default async function Home() {
             </div>
 
             {/* Right Side Visual / Agenda Preview */}
-            <div className="hidden lg:flex flex-col gap-6 relative">
-
-              {/* HISTORIAL / MIS RESERVAS SI EXISTEN */}
-              {userReservations && userReservations.length > 0 && (
-                <div className="relative bg-[#0a0a0a] border border-emerald-500/30 rounded-2xl p-6 overflow-hidden shadow-[0_0_50px_-12px_rgba(16,185,129,0.2)]">
-                  <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/5">
-                    <span className="text-sm font-bold uppercase text-white tracking-widest flex items-center gap-2">
-                      <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                      Tus Reservas
-                    </span>
-                  </div>
-                  <div className="space-y-4">
-                    {userReservations.map((res: any) => (
-                      <div key={res.id} className="flex items-center gap-4 group">
-                        <div className="text-center w-14 bg-white/5 rounded-lg p-2 border border-white/5 group-hover:border-primary/50 transition-colors">
-                          <span className="block text-[10px] text-muted-foreground font-bold uppercase">{new Date(res.start_time).toLocaleDateString('es-ES', { weekday: 'short' })}</span>
-                          <span className="block text-xl font-black text-white leading-none">{new Date(res.start_time).getDate()}</span>
-                        </div>
-                        <div>
-                          <div className="font-bold text-white text-sm uppercase tracking-wide">{res.type === 'FIELD' ? 'Cancha Sintética' : 'Evento Lounge'}</div>
-                          <div className="text-xs text-muted-foreground font-medium flex gap-2 items-center">
-                            <span>{new Date(res.start_time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
-                            <span className="w-1 h-1 bg-white/20 rounded-full" />
-                            <span className={`${res.status === 'HOLD' ? 'text-amber-500' : 'text-emerald-500'} font-bold`}>
-                              {res.status === 'HOLD' ? 'En Revisión' : res.status}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="relative">
-                <div className="absolute -inset-1 bg-gradient-to-r from-primary to-blue-600 rounded-2xl blur-lg opacity-30" />
-                <LiveSportsExperience />
-              </div>
+            <div className="hidden lg:flex flex-col gap-6 relative h-[600px]">
+              <ReservationsCard user={user} reservations={userReservations} />
             </div>
           </div>
         </section>

@@ -218,8 +218,43 @@ export default function ReservationFlow({ initialType }: Props) {
                     </div>
                 );
             case 2:
-                // Filter busy hours? Passed to timepicker?
-                // For MVP TimePicker handles generic selection, validation happens on Step 3 or Computed.
+                if (loading) {
+                    return (
+                        <div className="flex flex-col items-center justify-center py-20 space-y-4 animate-in fade-in">
+                            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                            <p className="text-muted-foreground font-medium animate-pulse">Consultando disponibilidad...</p>
+                        </div>
+                    );
+                }
+
+                // Aggregate availability for TimePicker (Step 2)
+                const aggregatedSlots: Record<number, 'AVAILABLE' | 'HOLD' | 'CONFIRMED'> = {};
+
+                // Initialize 8-23
+                for (let h = 8; h < 24; h++) {
+                    const timeLabel = `${h.toString().padStart(2, '0')}:00`;
+
+                    // Get status for this hour across all resources
+                    const statuses = resourcesData.map(r => {
+                        const slot = r.slots?.find(s => s.time === timeLabel);
+                        return (slot?.status as any) || 'AVAILABLE';
+                    });
+
+                    if (statuses.length === 0) {
+                        aggregatedSlots[h] = 'AVAILABLE';
+                        continue;
+                    }
+
+                    if (statuses.some(s => s === 'AVAILABLE')) {
+                        aggregatedSlots[h] = 'AVAILABLE';
+                    } else if (statuses.every(s => s === 'CONFIRMED')) {
+                        aggregatedSlots[h] = 'CONFIRMED';
+                    } else {
+                        // Mix of HOLD/CONFIRMED or all HOLD
+                        aggregatedSlots[h] = 'HOLD';
+                    }
+                }
+
                 return (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
                         <h2 className="text-lg font-bold text-white uppercase tracking-wide">Elige tu Horario</h2>
@@ -229,7 +264,12 @@ export default function ReservationFlow({ initialType }: Props) {
                             onChange={setStartHour}
                             onDurationChange={setDuration}
                             busyHours={[]}
+                            selectedDate={date}
+                            slotStatuses={aggregatedSlots}
                         />
+                        <div className="text-xs text-center text-muted-foreground mt-4 italic max-w-md mx-auto">
+                            * Los colores indican la disponibilidad general. Podrás elegir tu cancha específica en el siguiente paso.
+                        </div>
                     </div>
                 );
             case 3:

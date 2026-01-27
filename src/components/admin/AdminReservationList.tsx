@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatTime } from '@/lib/formatters';
 
 type Reservation = {
     id: string;
@@ -78,14 +79,14 @@ export default function AdminReservationList() {
                             <div>
                                 <div className="flex items-center gap-3">
                                     <span className={`px-2 py-0.5 text-xs rounded font-bold ${res.status === 'CONFIRMED' ? 'bg-emerald-900 text-emerald-400' :
-                                            res.status === 'HOLD' ? 'bg-orange-900 text-orange-400' :
-                                                res.status === 'CANCELLED' ? 'bg-red-900 text-red-400' :
-                                                    'bg-neutral-800 text-neutral-400'
+                                        res.status === 'HOLD' ? 'bg-orange-900 text-orange-400' :
+                                            res.status === 'CANCELLED' ? 'bg-red-900 text-red-400' :
+                                                'bg-neutral-800 text-neutral-400'
                                         }`}>
                                         {res.status}
                                     </span>
                                     <span className="text-sm text-neutral-300">
-                                        {new Date(res.start_time).toLocaleTimeString()} - {new Date(res.end_time).toLocaleTimeString()}
+                                        {formatTime(res.start_time)} - {formatTime(res.end_time)}
                                     </span>
                                 </div>
                                 <p className="text-sm text-neutral-400 mt-1">{res.profiles?.email || 'Admin/Unknown'}</p>

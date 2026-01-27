@@ -30,7 +30,7 @@ export async function GET(request: Request) {
         const { data: dayReservations, error } = await adminSupabase
             .from('reservations')
             .select(`
-            start_time, end_time, status,
+            start_time, end_time, status, hold_expires_at,
             reservation_resources(resource_id, quantity)
         `)
             .in('status', ['HOLD', 'PAYMENT_PENDING', 'CONFIRMED'])
@@ -78,30 +78,50 @@ export async function GET(request: Request) {
                 const timeLabel = `${h.toString().padStart(2, '0')}:00`; // "08:00"
 
                 // Check if this hour is busy
-                const isBusy = resReservations.find(r => {
+                // Check if this hour is busy
+                // Find conflicting reservation
+                const busyRes = resReservations.find(r => {
                     const rStart = new Date(r.start_time);
                     const rEnd = new Date(r.end_time);
 
-                    if (isNaN(rStart.getTime()) || isNaN(rEnd.getTime())) return false; // Skip invalid data
+                    if (isNaN(rStart.getTime()) || isNaN(rEnd.getTime())) return false;
 
                     const nextH = h + 1;
                     const nextTimeLabel = `${nextH.toString().padStart(2, '0')}:00`;
 
+                    // Force Panama dates for safety
                     const slotStartVal = new Date(`${dateStr}T${timeLabel}:00`).getTime();
                     const slotEndVal = new Date(`${dateStr}T${nextTimeLabel}:00`).getTime();
 
-                    // If date construction fails (shouldn't for 08-23), ignore
                     if (isNaN(slotStartVal) || isNaN(slotEndVal)) return false;
 
-                    // Overlap Check:
-                    // Max(StartA, StartB) < Min(EndA, EndB)
-                    return (Math.max(rStart.getTime(), slotStartVal) < Math.min(rEnd.getTime(), slotEndVal));
+                    const overlap = (Math.max(rStart.getTime(), slotStartVal) < Math.min(rEnd.getTime(), slotEndVal));
+                    if (!overlap) return false;
+
+                    // If overlap, check status validity
+                    if (r.status === 'CONFIRMED') return true;
+                    if (r.status === 'HOLD' || r.status === 'PAYMENT_PENDING') {
+                        // Check expiration
+                        if (r.hold_expires_at) {
+                            const expires = new Date(r.hold_expires_at);
+                            if (expires.getTime() > new Date().getTime()) return true; // Valid hold
+                            return false; // Expired, treat as available
+                        }
+                        return true; // Default hold valid if no expiry set? Or assume valid.
+                    }
+                    return false;
                 });
+
+                let status = 'AVAILABLE';
+                if (busyRes) {
+                    if (busyRes.status === 'CONFIRMED') status = 'CONFIRMED';
+                    else if (busyRes.status === 'HOLD' || busyRes.status === 'PAYMENT_PENDING') status = 'HOLD';
+                }
 
                 slots.push({
                     time: timeLabel,
-                    status: isBusy ? 'BUSY' : 'AVAILABLE',
-                    detail: isBusy ? isBusy.status : null
+                    status: status,
+                    detail: busyRes?.status
                 });
             }
 
