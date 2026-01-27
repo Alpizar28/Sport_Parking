@@ -24,13 +24,25 @@ async function requireAdmin() {
 async function checkAndExpireReservations(supabase: any) {
     try {
         const nowIso = new Date().toISOString();
-        const { error } = await supabase
+
+        // 1. Expire HOLDs that passed their TTL
+        const { error: holdsError } = await supabase
+            .from('reservations')
+            .update({ status: 'EXPIRED' }) // Or 'CANCELLED', user checklist mentioned both but 'cancelled' is final. Let's stick to CANCELLED for simplicity unless EXPIRED is preferred. Checklist said "se marca cancelled/expired". CANCELLED is safer for now as per previous code.
+            .eq('status', 'HOLD')
+            .lt('hold_expires_at', nowIso);
+
+        if (holdsError) console.error('Auto-expire HOLDs warning:', holdsError.message);
+
+        // 2. Expire PAYMENT_PENDING if they passed start_time (Game over)
+        const { error: pendingError } = await supabase
             .from('reservations')
             .update({ status: 'CANCELLED' })
-            .in('status', ['HOLD', 'PAYMENT_PENDING'])
+            .eq('status', 'PAYMENT_PENDING')
             .lt('start_time', nowIso);
 
-        if (error) console.error('Auto-expire warning:', error.message);
+        if (pendingError) console.error('Auto-expire PAYMENT_PENDING warning:', pendingError.message);
+
     } catch (e) {
         console.error('Auto-expire failed:', e);
     }

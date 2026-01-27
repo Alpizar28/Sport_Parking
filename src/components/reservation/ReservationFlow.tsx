@@ -190,7 +190,7 @@ export default function ReservationFlow({ initialType }: Props) {
                             </div>
                             <div className="flex justify-between items-center pt-2">
                                 <span className="text-sm font-medium text-gray-400">Total a Pagar</span>
-                                <span className="text-2xl font-black text-primary">${(duration * 35).toFixed(2)}</span>
+                                <span className="text-2xl font-black text-primary">${(duration * 35 * selectedResources.length).toFixed(2)}</span>
                             </div>
                         </div>
 
@@ -359,7 +359,7 @@ export default function ReservationFlow({ initialType }: Props) {
                             </div>
                             <div className="pt-4 flex justify-between items-center">
                                 <span className="text-xl font-bold text-white uppercase tracking-tighter">Total Estimado</span>
-                                <span className="text-2xl font-black text-emerald-500">${(duration * 35).toFixed(2)}</span>
+                                <span className="text-2xl font-black text-emerald-500">${(duration * 35 * selectedResources.length).toFixed(2)}</span>
                             </div>
                         </div>
 
