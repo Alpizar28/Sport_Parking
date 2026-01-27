@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { signout } from '../auth/actions';
 import AppLayout from '@/components/layout/AppLayout';
 import Link from 'next/link';
-import { Plus, Calendar, LogOut, Ticket, Clock, CheckCircle, XCircle, ArrowRight } from 'lucide-react';
+import { Plus, Calendar, LogOut, Ticket, Clock, CheckCircle, XCircle, ArrowRight, Trophy } from 'lucide-react';
 import UserNav from '@/components/layout/UserNav';
 import { formatTime, formatShortDate } from '@/lib/formatters';
 
@@ -40,35 +40,48 @@ export default async function DashboardPage() {
         .limit(20);
 
     return (
-        <AppLayout>
-            <div className="max-w-6xl mx-auto p-4 md:p-8">
-                {/* Header */}
-                <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
+        <div className="min-h-screen bg-black text-white font-sans selection:bg-primary/30">
+            {/* Navbar Transparente Integrado (Diseño Home) */}
+            <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/50 backdrop-blur-md left-0">
+                <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+                    <Link href="/" className="flex items-center gap-2 group">
+                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center border border-primary/20 group-hover:bg-primary group-hover:text-black transition-all">
+                            <Trophy className="w-5 h-5 text-primary group-hover:text-black transition-colors" />
+                        </div>
+                        <span className="text-xl font-bold tracking-tighter uppercase text-white">
+                            Sport<span className="text-primary">Parking</span>
+                        </span>
+                    </Link>
+
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-6 pl-4 border-l border-white/10">
+                            <UserNav userEmail={user.email!} isAdmin={isAdmin} />
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <div className="pt-24 max-w-6xl mx-auto p-4 md:p-8">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
                     <div>
-                        <h1 className="text-4xl font-black text-white uppercase tracking-tighter italic">
-                            Mi <span className="text-primary">Clube</span>
-                        </h1>
                         <p className="text-muted-foreground font-medium mt-1 flex items-center gap-2">
                             <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                             Bienvenido, {user.email?.split('@')[0]}
                         </p>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <Link href="/" className="text-sm font-bold text-muted-foreground hover:text-white uppercase tracking-wider">
-                            Ir al Inicio
+                    <div>
+                        <Link href="/" className="px-6 py-2 bg-emerald-500 hover:bg-emerald-400 text-black rounded-lg font-bold text-sm uppercase tracking-wider transition-colors flex items-center gap-2 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]">
+                            <ArrowRight className="w-4 h-4 rotate-180" />
+                            <span>Volver al Inicio</span>
                         </Link>
-                        <UserNav userEmail={user.email!} isAdmin={isAdmin} />
                     </div>
-                </header>
+                </div>
 
                 <main className="grid gap-8 md:grid-cols-12">
                     {/* Left Column: Actions & Highlights */}
                     <div className="md:col-span-4 space-y-6">
                         {/* New Reservation Card */}
                         <section className="bg-gradient-to-br from-primary/20 to-emerald-900/20 border border-primary/20 rounded-2xl p-6 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                <Plus className="w-24 h-24 text-primary" />
-                            </div>
 
                             <h2 className="text-xl font-black text-white uppercase tracking-tight mb-2 relative z-10">Nueva Reserva</h2>
                             <p className="text-emerald-100/70 text-sm mb-6 relative z-10">¿Listo para jugar? Agenda tu cancha o evento en segundos.</p>
@@ -88,18 +101,20 @@ export default async function DashboardPage() {
                                     <span>Evento / Cumpleaños</span>
                                     <ArrowRight className="w-4 h-4" />
                                 </Link>
+                                <Link
+                                    href="/"
+                                    className="block text-center w-full text-[10px] font-bold text-emerald-500/80 hover:text-emerald-400 uppercase tracking-widest py-2 transition-colors"
+                                >
+                                    Volver al Inicio
+                                </Link>
                             </div>
                         </section>
 
-                        {/* Quick Stats (Placeholder styled) */}
-                        <div className="grid grid-cols-2 gap-4">
+                        {/* Quick Stats */}
+                        <div className="grid grid-cols-1 gap-4">
                             <div className="bg-black/40 border border-white/5 rounded-2xl p-4 text-center">
                                 <span className="block text-3xl font-black text-white mb-1">{myReservations?.length || 0}</span>
                                 <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Total Reservas</span>
-                            </div>
-                            <div className="bg-black/40 border border-white/5 rounded-2xl p-4 text-center">
-                                <span className="block text-3xl font-black text-white mb-1">0</span>
-                                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Puntos</span>
                             </div>
                         </div>
                     </div>
@@ -184,6 +199,6 @@ export default async function DashboardPage() {
                     </div>
                 </main>
             </div>
-        </AppLayout>
+        </div>
     );
 }

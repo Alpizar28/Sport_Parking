@@ -7,16 +7,23 @@ import { mapAuthError } from '@/lib/auth-errors';
 import { FormError, FieldError } from '@/components/ui/FormErrors';
 
 export default function RegisterPage() {
+    const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [generalError, setGeneralError] = useState<{ title: string; message: string } | null>(null);
-    const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; confirm?: string }>({});
+    const [fieldErrors, setFieldErrors] = useState<{ fullName?: string; email?: string; password?: string; confirm?: string }>({});
 
     const validate = () => {
-        const errors: { email?: string; password?: string; confirm?: string } = {};
+        const errors: { fullName?: string; email?: string; password?: string; confirm?: string } = {};
         let isValid = true;
+
+        // Name
+        if (!fullName.trim()) {
+            errors.fullName = 'El nombre es obligatorio.';
+            isValid = false;
+        }
 
         // Email
         if (!email) {
@@ -57,6 +64,7 @@ export default function RegisterPage() {
         const formData = new FormData();
         formData.append('email', email);
         formData.append('password', password);
+        formData.append('full_name', fullName);
 
         try {
             // Call Server Action
@@ -114,6 +122,27 @@ export default function RegisterPage() {
                     )}
 
                     <div className="space-y-5">
+                        <div>
+                            <label htmlFor="fullName" className="block text-sm font-bold text-muted-foreground mb-1.5 uppercase text-xs tracking-wider">
+                                Nombre Completo
+                            </label>
+                            <input
+                                id="fullName"
+                                name="fullName"
+                                type="text"
+                                autoComplete="name"
+                                required
+                                disabled={loading}
+                                value={fullName}
+                                onChange={(e) => setFullName(e.target.value)}
+                                className={`block w-full rounded-lg border bg-secondary/50 py-3 text-white ring-0 placeholder:text-muted-foreground/40 focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6 px-4 transition-all ${fieldErrors.fullName
+                                    ? 'border-destructive focus:ring-destructive'
+                                    : 'border-white/5 focus:border-primary/50 focus:ring-primary/50'
+                                    } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                placeholder="Tu Nombre"
+                            />
+                            <FieldError message={fieldErrors.fullName} />
+                        </div>
                         <div>
                             <label htmlFor="email" className="block text-sm font-bold text-muted-foreground mb-1.5 uppercase text-xs tracking-wider">
                                 Correo Electrónico
