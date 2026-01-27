@@ -21,10 +21,33 @@ async function requireAdmin() {
     return supabase;
 }
 
+// Helper: Check and expire outdated pending reservations
+async function checkAndExpireReservations(supabase: any) {
+    const nowIso = new Date().toISOString();
+
+    // Find reservations that are:
+    // 1. Status is HOLD or PAYMENT_PENDING
+    // 2. Start time has passed
+    // We update them to CANCELLED (or EXPIRED, but user asked for cancelled logic)
+
+    const { error } = await supabase
+        .from('reservations')
+        .update({ status: 'CANCELLED' })
+        .in('status', ['HOLD', 'PAYMENT_PENDING'])
+        .lt('start_time', nowIso);
+
+    if (error) {
+        console.error('Error auto-expiring reservations:', error);
+    }
+}
+
 export async function getAdminStats() {
     try {
         const supabase = await requireAdmin();
         const todayStr = new Date().toISOString().split('T')[0];
+
+        // Auto-expire check
+        await checkAndExpireReservations(supabase);
 
         // 1. Today's Reservations Count
         const { count: todayCount } = await supabase
@@ -54,7 +77,8 @@ export async function getAdminStats() {
             .from('reservations')
             .select(`
                 id, start_time, end_time, status, type, total_amount,
-                reservation_resources(resources(name))
+                reservation_resources(resources(name)),
+                profiles(full_name, email)
             `)
             .gte('start_time', new Date().toISOString()) // From now onwards
             .lt('start_time', `${todayStr}T23:59:59`)
@@ -76,6 +100,10 @@ export async function getAdminStats() {
 
 export async function getAdminReservations(statusFilter?: string, query?: string, page = 1) {
     const supabase = await requireAdmin();
+
+    // Auto-expire check
+    await checkAndExpireReservations(supabase);
+
     const PAGE_SIZE = 20;
     const from = (page - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
@@ -84,7 +112,8 @@ export async function getAdminReservations(statusFilter?: string, query?: string
         .from('reservations')
         .select(`
             *,
-            reservation_resources(resources(name))
+            reservation_resources(resources(name)),
+            profiles(full_name, email)
         `, { count: 'exact' })
         .order('start_time', { ascending: false })
         .range(from, to);
@@ -126,12 +155,16 @@ export async function getAdminReservations(statusFilter?: string, query?: string
 export async function getPendingReservations() {
     const supabase = await requireAdmin();
 
+    // Auto-expire check
+    await checkAndExpireReservations(supabase);
+
     // Pending usually means HOLD (waiting payment proof) or PAYMENT_PENDING
     const { data, error } = await supabase
         .from('reservations')
         .select(`
             *,
-            reservation_resources(resources(name))
+            reservation_resources(resources(name)),
+            profiles(full_name, email)
         `)
         .in('status', ['HOLD', 'PAYMENT_PENDING'])
         .order('start_time', { ascending: true });

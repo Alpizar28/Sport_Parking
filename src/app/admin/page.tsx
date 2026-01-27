@@ -97,9 +97,10 @@ export default async function AdminSummaryPage() {
                                             <p className="text-sm font-bold text-white uppercase">
                                                 {res.reservation_resources?.[0]?.resources?.name || 'Cancha'}
                                             </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                {res.profiles?.email || 'Usuario'}
-                                            </p>
+                                            <div className="text-xs">
+                                                <span className="block text-white font-medium">{res.profiles?.full_name || 'Sin nombre'}</span>
+                                                <span className="block text-muted-foreground text-[10px]">{res.profiles?.email}</span>
+                                            </div>
                                         </div>
                                     </div>
                                     <span className={`text-[9px] font-black px-2 py-1 rounded uppercase tracking-wider ${res.status === 'CONFIRMED' ? 'bg-emerald-500/10 text-emerald-500' :

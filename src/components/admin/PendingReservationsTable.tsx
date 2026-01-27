@@ -11,7 +11,7 @@ interface Reservation {
     end_time: string;
     status: string;
     total_amount: number;
-    profiles?: { email: string } | null;
+    profiles?: { email: string; full_name?: string } | null;
     reservation_resources?: { resources: { name: string } | null }[];
 }
 
@@ -49,7 +49,7 @@ export default function PendingReservationsTable({ data }: { data: any[] }) {
 
     return (
         <div className="overflow-x-auto rounded-2xl border border-white/5">
-            <table className="w-full text-left text-sm text-gray-400">
+            <table className="w-full text-left text-sm text-gray-400 min-w-[600px]">
                 <thead className="bg-white/5 text-gray-200 font-bold uppercase tracking-wider text-xs">
                     <tr>
                         <th className="px-6 py-4">Fecha / Hora</th>
@@ -74,7 +74,8 @@ export default function PendingReservationsTable({ data }: { data: any[] }) {
                                 {res.reservation_resources?.[0]?.resources?.name || '---'}
                             </td>
                             <td className="px-6 py-4">
-                                {res.profiles?.email || 'N/A'}
+                                <div className="text-white font-bold">{res.profiles?.full_name || 'Sin Nombre'}</div>
+                                <div className="text-xs text-muted-foreground">{res.profiles?.email || 'N/A'}</div>
                             </td>
                             <td className="px-6 py-4 text-right font-mono text-white">
                                 ${res.total_amount}
