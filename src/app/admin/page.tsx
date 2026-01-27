@@ -25,6 +25,11 @@ export default async function AdminSummaryPage() {
                 <p className="text-muted-foreground mt-1 text-sm font-medium">
                     Vista general de la actividad de hoy
                 </p>
+                {stats.systemStatus === 'FALLBACK_AUTH' && (
+                    <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs rounded font-mono">
+                        ⚠️ Modo Fallback: Llave de Servicio no detectada o inválida. Algunos datos pueden faltar.
+                    </div>
+                )}
             </div>
 
             {/* KPI Cards */}

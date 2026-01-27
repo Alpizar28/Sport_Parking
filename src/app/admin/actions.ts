@@ -17,7 +17,7 @@ async function requireAdmin() {
         .single();
 
     if (profile?.role !== 'ADMIN') throw new Error('Forbidden: Admin Access Required');
-    return { user, supabase }; // Return the authenticated client too
+    return { user, supabase };
 }
 
 // Helper: Check and expire outdated pending reservations
@@ -32,7 +32,7 @@ async function checkAndExpireReservations(supabase: any) {
 
         if (error) console.error('Auto-expire warning:', error.message);
     } catch (e) {
-        console.error('Auto-expire failed completely:', e);
+        console.error('Auto-expire failed:', e);
     }
 }
 
@@ -40,22 +40,21 @@ export async function getAdminStats() {
     try {
         await requireAdmin();
 
-        // Try Admin Client first
         let supabase = createAdminClient();
-        let usingAdminClient = true;
+        let systemStatus = 'SECURE';
 
-        // Verify if Admin Client works (simple health check)
+        // Health Check (Check if Service Role works)
         const { error: healthCheck } = await supabase.from('profiles').select('id').limit(1);
         if (healthCheck) {
-            console.error('⚠️ Admin Client Failed (Check SUPABASE_SERVICE_ROLE_KEY). Falling back to standard client.', healthCheck);
+            console.error('Admin Client Health Check Failed:', healthCheck);
+            // Fallback to standard client
             supabase = (await requireAdmin()).supabase;
-            usingAdminClient = false;
+            systemStatus = 'FALLBACK_AUTH';
         }
 
         const todayStr = new Date().toISOString().split('T')[0];
 
-        // Only try auto-expire if using admin client (standard client might have RLS blocks for updates)
-        if (usingAdminClient) {
+        if (systemStatus === 'SECURE') {
             await checkAndExpireReservations(supabase);
         }
 
@@ -83,26 +82,26 @@ export async function getAdminStats() {
             .eq('status', 'CONFIRMED');
 
         // 4. Upcomings
-        // Safe query building: only join profiles if using admin client or if we know RLS allows it
-        let upcomingQuery = supabase
+        // ALWAYS try to fetch profiles. If fallback client fails RLS, so be it, but don't preemptively block it.
+        const { data: upcomingToday } = await supabase
             .from('reservations')
-            .select(usingAdminClient
-                ? `id, start_time, end_time, status, type, total_amount, reservation_resources(resources(name)), profiles(full_name, email)`
-                : `id, start_time, end_time, status, type, total_amount, reservation_resources(resources(name))`
-            )
+            .select(`
+                id, start_time, end_time, status, type, total_amount, 
+                reservation_resources(resources(name)), 
+                profiles(full_name, email)
+            `)
             .gte('start_time', new Date().toISOString())
             .lt('start_time', `${todayStr}T23:59:59`)
             .neq('status', 'CANCELLED')
             .order('start_time', { ascending: true })
             .limit(8);
 
-        const { data: upcomingToday } = await upcomingQuery;
-
         return {
             todayCount: todayCount || 0,
             pendingCount: pendingCount || 0,
             confirmedWeek: confirmedWeek || 0,
-            upcomingToday: upcomingToday || []
+            upcomingToday: upcomingToday || [],
+            systemStatus // Returning this to display in UI for debugging
         };
     } catch (e) {
         console.error('getAdminStats Critical Error:', e);
@@ -115,11 +114,16 @@ export async function getAdminReservations(statusFilter?: string, query?: string
     let supabase = createAdminClient();
     let usingAdminClient = true;
 
-    // Check availability of Service Key
+    // Health Check
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-        console.warn('Missing SUPABASE_SERVICE_ROLE_KEY. Using authenticated client.');
-        supabase = authSession.supabase;
         usingAdminClient = false;
+        supabase = authSession.supabase;
+    } else {
+        const { error } = await supabase.from('profiles').select('id').limit(1);
+        if (error) {
+            usingAdminClient = false;
+            supabase = authSession.supabase;
+        }
     }
 
     if (usingAdminClient) {
@@ -130,13 +134,11 @@ export async function getAdminReservations(statusFilter?: string, query?: string
     const from = (page - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    // Build Select Query
-    // Note: If using standard client, 'profiles' join usually fails due to RLS unless 'profiles' is publicly readable.
-    // We will attempt it, but catch errors.
+    // ALWAYS include profiles in the query string
     const selectString = `
         *,
-        reservation_resources(resources(name))
-        ${usingAdminClient ? ', profiles(full_name, email)' : ''}
+        reservation_resources(resources(name)),
+        profiles(full_name, email)
     `;
 
     let dbQuery = supabase
@@ -158,9 +160,10 @@ export async function getAdminReservations(statusFilter?: string, query?: string
     if (error) {
         console.error('getAdminReservations Fetch Error:', error);
 
-        // Retry with Bare minimum if it failed (likely due to joins)
-        if (usingAdminClient) {
-            console.log('Retrying with standard client...');
+        // Retry logic: If fetch failed (likely RLS on profiles with normal client), try forcing WITHOUT profiles
+        // This ensures we at least show the reservations
+        if (!usingAdminClient) {
+            console.log('Retrying without profiles due to RLS error...');
             const { data: retryData, count: retryCount } = await authSession.supabase
                 .from('reservations')
                 .select('*, reservation_resources(resources(name))', { count: 'exact' })
@@ -180,18 +183,25 @@ export async function getPendingReservations() {
     let usingAdminClient = true;
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-        supabase = authSession.supabase;
         usingAdminClient = false;
+        supabase = authSession.supabase;
+    } else {
+        const { error } = await supabase.from('profiles').select('id').limit(1);
+        if (error) {
+            usingAdminClient = false;
+            supabase = authSession.supabase;
+        }
     }
 
     if (usingAdminClient) {
         await checkAndExpireReservations(supabase);
     }
 
+    // Always ask for profiles initially
     const selectString = `
         *,
-        reservation_resources(resources(name))
-        ${usingAdminClient ? ', profiles(full_name, email)' : ''}
+        reservation_resources(resources(name)),
+        profiles(full_name, email)
     `;
 
     const { data, error } = await supabase
@@ -202,7 +212,7 @@ export async function getPendingReservations() {
 
     if (error) {
         console.error('getPendingReservations Error:', error);
-        // Fallback
+        // Fallback retry without profiles
         const { data: retryData } = await authSession.supabase
             .from('reservations')
             .select(`*, reservation_resources(resources(name))`)
@@ -217,7 +227,6 @@ export async function approveReservation(id: string) {
     await requireAdmin();
     const supabase = createAdminClient();
 
-    // We try admin client, if it fails (no key), we try normal client
     let { error } = await supabase
         .from('reservations')
         .update({ status: 'CONFIRMED' })
