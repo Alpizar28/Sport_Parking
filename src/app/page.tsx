@@ -95,7 +95,7 @@ export default async function Home() {
               <>
                 <Link
                   href="/login"
-                  className="text-sm font-bold text-muted-foreground hover:text-white transition-colors uppercase tracking-wider"
+                  className="hidden sm:block text-sm font-bold text-muted-foreground hover:text-white transition-colors uppercase tracking-wider"
                 >
                   Iniciar Sesión
                 </Link>

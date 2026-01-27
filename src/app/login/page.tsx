@@ -95,7 +95,7 @@ export default function LoginPage() {
                 Volver al Inicio
             </Link>
 
-            <div className="w-full max-w-md space-y-8 bg-card p-8 rounded-2xl border border-white/5 shadow-2xl relative backdrop-blur-sm">
+            <div className="w-full max-w-md space-y-8 bg-card p-6 md:p-8 rounded-2xl border border-white/5 shadow-2xl relative backdrop-blur-sm">
                 <div>
                     <div className="mx-auto w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20 mb-6">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" /></svg>
