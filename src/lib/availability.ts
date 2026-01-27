@@ -34,7 +34,7 @@ export async function checkAvailability(
     const resourceIds = resources.map((r) => r.resource_id);
     const { data: resourceInfos, error: resError } = await supabase
         .from('resources')
-        .select('id, capacity, type')
+        .select('id, capacity, type, name')
         .in('id', resourceIds);
 
     if (resError || !resourceInfos) {
