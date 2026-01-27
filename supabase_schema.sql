@@ -7,9 +7,12 @@ CREATE TYPE payment_status AS ENUM ('PENDING', 'PAID', 'FAILED', 'REFUNDED');
 CREATE TYPE user_role AS ENUM ('CLIENT', 'ADMIN');
 
 -- 2. Profiles (Roles)
+-- 2. Profiles (Roles)
 CREATE TABLE public.profiles (
   id UUID REFERENCES auth.users NOT NULL PRIMARY KEY,
   email TEXT,
+  full_name TEXT,
+  avatar_url TEXT,
   role user_role DEFAULT 'CLIENT',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -19,8 +22,20 @@ CREATE TABLE public.profiles (
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, role)
-  VALUES (new.id, new.email, 'CLIENT'); -- Default to CLIENT
+  INSERT INTO public.profiles (id, email, full_name, avatar_url, role)
+  VALUES (
+    new.id, 
+    new.email, 
+    COALESCE(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', ''),
+    COALESCE(new.raw_user_meta_data->>'avatar_url', new.raw_user_meta_data->>'picture', ''),
+    'CLIENT'
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name),
+    avatar_url = COALESCE(EXCLUDED.avatar_url, public.profiles.avatar_url),
+    updated_at = NOW();
+    
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

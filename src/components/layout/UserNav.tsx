@@ -7,10 +7,12 @@ import { signout } from "@/app/auth/actions";
 
 interface UserNavProps {
     userEmail: string;
+    userName?: string;
+    avatarUrl?: string;
     isAdmin?: boolean;
 }
 
-export default function UserNav({ userEmail, isAdmin }: UserNavProps) {
+export default function UserNav({ userEmail, userName, avatarUrl, isAdmin }: UserNavProps) {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -27,6 +29,8 @@ export default function UserNav({ userEmail, isAdmin }: UserNavProps) {
         };
     }, []);
 
+    const displayName = userName || userEmail?.split('@')[0] || 'Usuario';
+
     return (
         <div className="relative" ref={menuRef}>
             {/* Trigger Button */}
@@ -35,13 +39,15 @@ export default function UserNav({ userEmail, isAdmin }: UserNavProps) {
                 className="flex items-center gap-3 group focus:outline-none"
             >
                 <div className="text-right hidden sm:block">
-                    <span className="block text-[10px] uppercase font-bold text-muted-foreground tracking-widest group-hover:text-emerald-500 transition-colors">Conectado como</span>
-                    <span className="block text-sm font-bold text-white max-w-[150px] truncate">{userEmail}</span>
+                    <span className="block text-[10px] uppercase font-bold text-muted-foreground tracking-widest group-hover:text-emerald-500 transition-colors">Hola,</span>
+                    <span className="block text-sm font-bold text-white max-w-[150px] truncate">{displayName}</span>
                 </div>
-                <div className="h-10 w-10 bg-gradient-to-br from-primary to-emerald-700 rounded-full flex items-center justify-center text-black font-bold border border-white/10 shadow-lg group-hover:scale-105 transition-transform relative">
-                    <User className="w-5 h-5" />
-                    {/* Status Dot */}
-                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-black rounded-full"></span>
+                <div className="h-10 w-10 rounded-full flex items-center justify-center border border-white/10 shadow-lg group-hover:scale-105 transition-transform relative overflow-hidden bg-gradient-to-br from-primary to-emerald-700">
+                    {avatarUrl ? (
+                        <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                    ) : (
+                        <User className="w-5 h-5 text-black" />
+                    )}
                 </div>
                 <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
             </button>

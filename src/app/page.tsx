@@ -7,17 +7,21 @@ import UserNav from "@/components/layout/UserNav";
 export default async function Home() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  // Check for Admin Role
+  // Check for Admin Role & Profile
   let isAdmin = false;
+  let userProfile = null;
+
   if (user) {
-    // Note: If you have recursion issues with profiles, this query might fail without the fix. 
-    // But we fixed it with the security definer function.
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, full_name, avatar_url')
       .eq('id', user.id)
       .single();
-    if (profile?.role === 'ADMIN') isAdmin = true;
+
+    if (profile) {
+      userProfile = profile;
+      if (profile.role === 'ADMIN') isAdmin = true;
+    }
   }
   // Fetch user reservations if logged in
   let userReservations = null;
@@ -60,7 +64,6 @@ export default async function Home() {
         }
         return true;
       }) || [];
-      console.log(`[Home] Reservations found: ${data?.length} (Active: ${userReservations.length})`);
     }
   }
 
@@ -81,7 +84,12 @@ export default async function Home() {
           <div className="flex items-center gap-4">
             {user ? (
               <div className="flex items-center gap-6 pl-4 border-l border-white/10">
-                <UserNav userEmail={user.email!} isAdmin={isAdmin} />
+                <UserNav
+                  userEmail={user.email!}
+                  userName={userProfile?.full_name}
+                  avatarUrl={userProfile?.avatar_url}
+                  isAdmin={isAdmin}
+                />
               </div>
             ) : (
               <>

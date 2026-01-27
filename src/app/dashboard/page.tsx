@@ -11,15 +11,21 @@ export default async function DashboardPage() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Check for Admin Role
+    // Fetch User Profile
     let isAdmin = false;
+    let userProfile = null;
+
     if (user) {
         const { data: profile } = await supabase
             .from('profiles')
-            .select('role')
+            .select('role, full_name, avatar_url')
             .eq('id', user.id)
             .single();
-        if (profile?.role === 'ADMIN') isAdmin = true;
+
+        if (profile) {
+            userProfile = profile;
+            if (profile.role === 'ADMIN') isAdmin = true;
+        }
     }
 
     if (!user) {
@@ -39,6 +45,8 @@ export default async function DashboardPage() {
         .order('start_time', { ascending: false }) // Newest first
         .limit(20);
 
+    const displayName = userProfile?.full_name || user.email?.split('@')[0];
+
     return (
         <div className="min-h-screen bg-black text-white font-sans selection:bg-primary/30">
             {/* Navbar Transparente Integrado (Diseño Home) */}
@@ -55,7 +63,12 @@ export default async function DashboardPage() {
 
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-6 pl-4 border-l border-white/10">
-                            <UserNav userEmail={user.email!} isAdmin={isAdmin} />
+                            <UserNav
+                                userEmail={user.email!}
+                                userName={userProfile?.full_name}
+                                avatarUrl={userProfile?.avatar_url}
+                                isAdmin={isAdmin}
+                            />
                         </div>
                     </div>
                 </div>
@@ -66,7 +79,7 @@ export default async function DashboardPage() {
                     <div>
                         <p className="text-muted-foreground font-medium mt-1 flex items-center gap-2">
                             <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                            Bienvenido, {user.email?.split('@')[0]}
+                            Bienvenido, {displayName}
                         </p>
                     </div>
                     <div>
