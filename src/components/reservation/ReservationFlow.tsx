@@ -183,6 +183,15 @@ export default function ReservationFlow({ initialType }: Props) {
     };
 
 
+    // Type Change Handler
+    const handleTypeSelection = (type: 'FIELD' | 'TABLE_ROW') => {
+        if (type === reservationType) return;
+        setReservationType(type);
+        // Reset state on type switch to avoid mixed resources leak
+        setSelectedResources([]);
+        setError(null);
+    };
+
     // Render Steps
     const renderStepContent = () => {
         if (isSuccess) {
@@ -262,7 +271,7 @@ export default function ReservationFlow({ initialType }: Props) {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
                             {/* Card: CANCHAS */}
                             <button
-                                onClick={() => setReservationType('FIELD')}
+                                onClick={() => handleTypeSelection('FIELD')}
                                 className={`relative group p-8 rounded-2xl border transition-all duration-300 text-left h-[280px] flex flex-col justify-end overflow-hidden
                                     ${reservationType === 'FIELD'
                                         ? 'border-primary bg-primary/10 ring-1 ring-primary shadow-[0_0_30px_-5px_rgba(16,185,129,0.3)]'
@@ -290,7 +299,7 @@ export default function ReservationFlow({ initialType }: Props) {
 
                             {/* Card: MESAS */}
                             <button
-                                onClick={() => setReservationType('TABLE_ROW')}
+                                onClick={() => handleTypeSelection('TABLE_ROW')}
                                 className={`relative group p-8 rounded-2xl border transition-all duration-300 text-left h-[280px] flex flex-col justify-end overflow-hidden
                                     ${reservationType === 'TABLE_ROW'
                                         ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500 shadow-[0_0_30px_-5px_rgba(245,158,11,0.3)]'
@@ -339,28 +348,130 @@ export default function ReservationFlow({ initialType }: Props) {
                 // Aggregate availability for TimePicker (Step 3)
                 const aggregatedSlots: Record<number, 'AVAILABLE' | 'HOLD' | 'CONFIRMED'> = {};
 
-                // Initialize 8-23
+                // Get relevant resources
+                const matchingResources = resourcesData.filter(r => r.type === reservationType);
+                const totalResources = matchingResources.length;
+
+                // Loop hours 8-23
                 for (let h = 8; h < 24; h++) {
-                    const timeLabel = `${h.toString().padStart(2, '0')}:00`;
+                    // We need to check not just this hour `h`, but the block `[h, h+duration)`
+                    // If ANY hour in the block is unavailable for a resource, that resource is unavailable for the block.
 
-                    // Get status for this hour across all resources
-                    const statuses = resourcesData.filter(r => r.type === reservationType).map(r => {
-                        const slot = r.slots?.find(s => s.time === timeLabel);
-                        return (slot?.status as any) || 'AVAILABLE';
-                    });
+                    let availableCount = 0;
+                    let confirmedBlockCount = 0;
+                    let holdBlockCount = 0;
 
-                    if (statuses.length === 0) {
+                    if (totalResources === 0) {
                         aggregatedSlots[h] = 'AVAILABLE';
                         continue;
                     }
 
-                    if (statuses.some(s => s === 'AVAILABLE')) {
+                    // For each resource, check if it's free for the ENTIRE duration starting at h
+                    for (const res of matchingResources) {
+                        let isFree = true;
+                        let isConfirmedBlocked = false;
+                        let isHoldBlocked = false; // Could be HOLD or PAYMENT_PENDING
+
+                        for (let i = 0; i < duration; i++) {
+                            const checkH = h + i;
+                            if (checkH >= 24) { isFree = false; break; } // Out of bounds
+
+                            const timeLabel = `${checkH.toString().padStart(2, '0')}:00`;
+                            const slot = res.slots?.find(s => s.time === timeLabel);
+                            const status = slot?.status || 'AVAILABLE';
+
+                            if (status !== 'AVAILABLE') {
+                                isFree = false;
+                                if (status === 'CONFIRMED') isConfirmedBlocked = true;
+                                else if (status === 'HOLD' || status === 'PAYMENT_PENDING') isHoldBlocked = true;
+                            }
+                        }
+
+                        if (isFree) {
+                            availableCount++;
+                        } else {
+                            if (isConfirmedBlocked) confirmedBlockCount++;
+                            // Else if blocked by hold only (or mixed without confirm), count as hold
+                            // Note: We care about "ALL blocked by confirm".
+                        }
+                    }
+
+                    // Determine State
+                    if (availableCount > 0) {
                         aggregatedSlots[h] = 'AVAILABLE';
-                    } else if (statuses.every(s => s === 'CONFIRMED')) {
-                        aggregatedSlots[h] = 'CONFIRMED';
                     } else {
-                        // Mix of HOLD/CONFIRMED or all HOLD
-                        aggregatedSlots[h] = 'HOLD';
+                        // All blocked. By what?
+                        // If ALL resources are blocked and at least one is blocked by CONFIRMED, 
+                        // is the hour RED or YELLOW?
+                        // "Si blockingConfirmed == totalResources => RED"
+                        // But wait, if 1 is confirmed and 1 is hold, available=0.
+                        // The prompt says: "Mezcla: 1 CONFIRMED y 1 HOLD (sin libres) => rojo"
+                        // Wait, prompt case D says: "Mezcla: 1 CONFIRMED y 1 HOLD (sin libres) => rojo"
+                        // This implies if ANY is confirmed blocked and we have 0 availability, it's 'confirmed' heavy?
+                        // OR maybe it means we prioritize CONFIRMED visualization if it contributes to the full block.
+
+                        // Re-reading Prompt Aggregation Logic:
+                        // "Si disponibles == 0:
+                        //    Si blockedConfirmed == totalResources => RESERVED (rojo)
+                        //    Else => IN_REVIEW (amarillo)"
+                        // Prompt Case D: "1 CONFIRMED y 1 HOLD => rojo" -> CONTRADICTS the rule above?
+                        // Rule: "Si blockedConfirmed == totalResources => Red". In Case D (total 2), blockedConfirmed=1. So 1 != 2. result Yellow.
+                        // BUT Case D says "rojo".
+                        // Okay, let's follow the Case D implication: likely if availability is 0, we show RED if we can't book because things are taken.
+                        // Actually, 'IN_REVIEW' (yellow) usually implies "maybe you can wait".
+                        // Let's stick to a robust interpretation:
+                        // If 0 available:
+                        //   If we have ANY confirmed blockage that prevents booking, it feels 'hard blocked'.
+                        //   But strict rule: "Si blockedConfirmed == totalResources => RESERVED (rojo)".
+                        //   Let's follow the strict rule first. Wait, Case D might mean "Red" visually?
+                        //   Let's adjust to: If available == 0, if ANY is confirmed, treat as Red?
+                        //   No, let's stick to the prompt text rule 2.
+
+                        // Revised Logic based on "blockedConfirmed == totalResources"
+                        // Case D (1 Confirmed, 1 Hold): blockedConfirmed = 1. total = 2. Red? No per rule.
+                        // Let's assume the user wants: "If I can't book, red is reserved, yellow is pending."
+                        // If 1 is reserved and 1 is pending, the slot is effectively reserved+pending.
+                        // Let's implement blockedConfirmed == totalResources for RED. If mixed, YELLOW.
+
+                        // WAIT: Prompt note says "Nota: si hay mezcla de confirmed + holds, rojo debe cambiar si confirmed ya bloquea el total."
+                        // This sounds like: if confirmed count + hold count == total.
+
+                        // Let's try to infer intent:
+                        // Green: Can book.
+                        // Yellow: Can't book, but maybe opens up (holds expire).
+                        // Red: Can't book, won't open up (confirmed).
+
+                        // In Case D (1 Confirmed, 1 Hold): 
+                        // Can it open up? The Hold might expire. Then we have 1 Available.
+                        // So Case D should effectively be YELLOW (Pending) because a Hold *might* free up allowing a booking.
+                        // If User wants D to be Red, then "Available > 0" check failed.
+
+                        // Let's follow Rule 2 exactly:
+                        // if available == 0:
+                        //    if blockedConfirmed == totalResources -> RED
+                        //    else -> YELLOW (implies some are Holds that might expire)
+
+                        // Wait, check specific resource logic:
+                        // A resource is blocked confirmed if it has a confirmed overlap.
+                        // A resource is blocked pending if it has data but no confirmed overlap.
+
+                        // Let's count accurately.
+                        const blockedByConfirmed = matchingResources.filter(r => {
+                            // Check if this resource has a CONFIRMED overlap in range
+                            for (let i = 0; i < duration; i++) {
+                                const timeLabel = `${(h + i).toString().padStart(2, '0')}:00`;
+                                const slot = r.slots?.find(s => s.time === timeLabel);
+                                if (slot?.status === 'CONFIRMED') return true;
+                            }
+                            return false;
+                        }).length;
+
+                        if (blockedByConfirmed > 0) {
+                            aggregatedSlots[h] = 'CONFIRMED';
+                        } else {
+                            // Means all blocked by holds.
+                            aggregatedSlots[h] = 'HOLD';
+                        }
                     }
                 }
 

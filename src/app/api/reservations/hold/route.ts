@@ -85,6 +85,30 @@ export async function POST(request: Request) {
         }
 
 
+        // 3a. Validate Resource Type Consistency (Hard Guard)
+        // Ensure all provided resources match the reservation `type`.
+        const adminSupabase = createAdminClient();
+        const resourceIds = resources.map((r: any) => r.resource_id);
+        const { data: dbResources } = await adminSupabase
+            .from('resources')
+            .select('id, type, name')
+            .in('id', resourceIds);
+
+        if (!dbResources || dbResources.length !== resourceIds.length) {
+            return NextResponse.json(
+                { error: { code: 'INVALID_RESOURCE', message: 'One or more resources do not exist.' } },
+                { status: 400 }
+            );
+        }
+
+        const invalidTypeResources = dbResources.filter(r => r.type !== type);
+        if (invalidTypeResources.length > 0) {
+            return NextResponse.json(
+                { error: { code: 'TYPE_MISMATCH', message: `No puedes mezclar tipos. Estás reservando ${type} pero el recurso ${invalidTypeResources[0].name} es ${invalidTypeResources[0].type}.` } },
+                { status: 400 }
+            );
+        }
+
         // 3. Availability Check
         const availability = await checkAvailability(startDate, endDate, resources);
         if (!availability.available) {
@@ -95,19 +119,23 @@ export async function POST(request: Request) {
         }
 
         // 4. Create HOLD (Transaction simulation)
-        const adminSupabase = createAdminClient();
 
-        // Check active HOLDs for user (Rule: 1 active hold per user)
+        // Check active HOLDs for user (Rule: 1 active hold PER TYPE)
         const { data: activeHolds } = await adminSupabase
             .from('reservations')
             .select('id')
             .eq('user_id', user.id)
+            .eq('type', type) // Check only same type
             .in('status', ['HOLD', 'PAYMENT_PENDING'])
             .gt('hold_expires_at', now.toISOString()); // Check validity
 
         if (activeHolds && activeHolds.length > 0) {
+            const msg = type === 'FIELD'
+                ? 'Ya tienes una reserva de cancha en proceso. Completa o cancélala antes de crear otra.'
+                : 'Ya tienes una reserva de mesa en proceso. Completa o cancélala antes de crear otra.';
+
             return NextResponse.json(
-                { error: { code: 'ACTIVE_HOLD_EXISTS', message: 'Ya tienes una reserva en proceso. Completa o cancélala antes de crear otra.' } },
+                { error: { code: 'ACTIVE_HOLD_EXISTS', message: msg } },
                 { status: 409 }
             );
         }
