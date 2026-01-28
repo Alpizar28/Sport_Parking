@@ -125,16 +125,8 @@ export async function checkAvailability(
         const requested = req.quantity;
 
         if (used + requested > info.capacity) {
-            // Special case for FIELDS: usually capacity 1.
-            // If it's a field and used > 0, it's busy.
-            if (info.type === 'FIELD') {
-                return { available: false, reason: `Resource ${info.name} is already booked` };
-            }
-            console.warn(`Capacity exceeded for ${info.name}: used=${used} + req=${requested} > cap=${info.capacity}`);
-            return {
-                available: false,
-                reason: `Not enough capacity for ${info.name}. Requested: ${requested}, Available: ${info.capacity - used}`
-            };
+            // Simplify: If booked, it's booked. Fields capacity=1.
+            return { available: false, reason: `Resource ${info.name} is already booked` };
         }
     }
 

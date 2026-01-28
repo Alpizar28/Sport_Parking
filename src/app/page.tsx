@@ -178,7 +178,7 @@ export default async function Home() {
                 <div className="absolute bottom-0 left-0 p-8">
                   <Beer className="w-10 h-10 text-amber-500 mb-4" />
                   <h3 className="text-3xl font-bold text-white uppercase italic tracking-tighter mb-2">Vive</h3>
-                  <p className="text-gray-400 text-sm mb-6 line-clamp-2">Zona Lounge con Pantallas 4K. Mesas para tu grupo, audio envolvente y barra.</p>
+                  <p className="text-gray-400 text-sm mb-6 line-clamp-2">Zona Lounge con Pantallas 4K. Espacio para tu grupo, audio envolvente y barra.</p>
                 </div>
               </div>
 

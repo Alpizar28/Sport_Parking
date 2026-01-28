@@ -35,13 +35,20 @@ export async function POST(request: Request) {
              customer_note: string
           }
         */
-        const { type, dateLocal, startHour, duration, resources, customer_note, start: legacyStart } = body;
+        const { type, dateLocal, startHour, duration, resources, customer_note } = body;
 
         // Basic Validations
         if (!dateLocal || startHour === undefined || !duration || !resources || !Array.isArray(resources) || resources.length === 0) {
-            // Fallback for legacy calls logic ? No, user wants migration.
             return NextResponse.json(
                 { error: { code: 'INVALID_REQUEST', message: 'Missing required fields (dateLocal, startHour, duration, resources)' } },
+                { status: 400 }
+            );
+        }
+
+        // STRICT: Only allow FIELD reservations now
+        if (type !== 'FIELD' && type !== 'EVENT') { // Allow EVENT for admin blocks if needed, but UI primarily sends FIELD
+            return NextResponse.json(
+                { error: { code: 'INVALID_TYPE', message: 'Only FIELD reservations are supported.' } },
                 { status: 400 }
             );
         }
@@ -78,11 +85,9 @@ export async function POST(request: Request) {
             );
         }
 
-        const durationHours = duration; // Alias for reuse
+        const durationHours = duration;
 
-
-        // 3a. Validate Resource Type Consistency (Hard Guard)
-        // Ensure all provided resources match the reservation `type`.
+        // 3a. Validate Resource Existence & Type
         const adminSupabase = createAdminClient();
         const resourceIds = resources.map((r: any) => r.resource_id);
         const { data: dbResources } = await adminSupabase
@@ -97,10 +102,11 @@ export async function POST(request: Request) {
             );
         }
 
-        const invalidTypeResources = dbResources.filter(r => r.type !== type);
+        // Ensure resources are FIELD
+        const invalidTypeResources = dbResources.filter(r => r.type !== 'FIELD');
         if (invalidTypeResources.length > 0) {
             return NextResponse.json(
-                { error: { code: 'TYPE_MISMATCH', message: `No puedes mezclar tipos. Estás reservando ${type} pero el recurso ${invalidTypeResources[0].name} es ${invalidTypeResources[0].type}.` } },
+                { error: { code: 'TYPE_MISMATCH', message: `All resources must be FIELDS.` } },
                 { status: 400 }
             );
         }
@@ -114,88 +120,41 @@ export async function POST(request: Request) {
             );
         }
 
-        // 4. Create HOLD (Transaction simulation)
+        // 4. Create HOLD
+        // Rule: 1 active hold/pending per user for FIELDS
+        const { data: activeHolds } = await adminSupabase
+            .from('reservations')
+            .select('id')
+            .eq('user_id', user.id)
+            .in('status', ['HOLD', 'PAYMENT_PENDING'])
+            .gt('hold_expires_at', now.toISOString());
 
-        // Check active HOLDs for user?
-        // Rules:
-        // - FIELD: 1 active hold/pending per user.
-        // - TABLE_ROW: If it's free and instant CONFIRMED, maybe allow multiple? 
-        //   BUT capacity check (step 3) already prevents overbooking.
-        //   Let's keep the "1 active hold" check only for non-confirmed reservations to prevent spamming holds.
-        //   Since Tables are instant confirmed, we skip this check if status becomes CONFIRMED.
-
-        let totalAmount = 0;
-        let status = 'HOLD';
-        let holdExpiresAt: string | null = null;
-        const defaultHoldExpiresAt = new Date(now.getTime() + HOLD_DURATION_MINUTES * 60 * 1000).toISOString();
-
-        if (type === 'TABLE_ROW') {
-            // Tables are free and auto-confirmed
-            totalAmount = 0;
-            status = 'CONFIRMED';
-            holdExpiresAt = null; // No expiration for confirmed
-        } else {
-            // Fields logic
-            status = 'HOLD';
-            holdExpiresAt = defaultHoldExpiresAt;
-
-            // Check active HOLDs logic (moved inside else to skip for confirmed tables)
-            const { data: activeHolds } = await adminSupabase
-                .from('reservations')
-                .select('id')
-                .eq('user_id', user.id)
-                .eq('type', type)
-                .in('status', ['HOLD', 'PAYMENT_PENDING'])
-                .gt('hold_expires_at', now.toISOString());
-
-            if (activeHolds && activeHolds.length > 0) {
-                const msg = 'Ya tienes una reserva de cancha en proceso. Completa o cancélala antes de crear otra.';
-                return NextResponse.json(
-                    { error: { code: 'ACTIVE_HOLD_EXISTS', message: msg } },
-                    { status: 409 }
-                );
-            }
-
-            for (const res of resources) {
-                // Determine price...
-                // Fallback pricing
-                totalAmount += 35 * durationHours * res.quantity;
-            }
+        if (activeHolds && activeHolds.length > 0) {
+            return NextResponse.json(
+                { error: { code: 'ACTIVE_HOLD_EXISTS', message: 'Ya tienes una reserva en proceso. Completa o cancélala antes de crear otra.' } },
+                { status: 409 }
+            );
         }
 
-        // SECURITY CHECK FOR TABLE_ROW and FIELD
-        // We already ran checkAvailability() above (step 3), which uses src/lib/availability.ts
-        // That function is supposed to be robust. However, checkAvailability logic might be outdated if we haven't synced it.
-        // Let's rely primarily on checkAvailability if we trust it, BUT we need to ensure checkAvailability
-        // uses the correct "Capacity" logic we just fixed in route.ts (GET).
-
-        // Wait, step 3 calls checkAvailability(startDate, endDate, resources).
-        // If availability.available is false, we return 409.
-        // So the fix needs to be in src/lib/availability.ts because that's what's blocking the user!
-
-        // THE BLOCK BELOW WAS REDUNDANT AND INCORRECT FOR TABLES (It assumed ANY conflict is bad)
-        // I will remove this manual conflict check and rely on a fixed checkAvailability in lib/availability.ts
-        // This avoids code duplication and errors.
-
-        // ... (Removing the manual conflict block for TABLE_ROW lines 163-199) ...
-
-
+        // Calculate Pricing (MVP: $35/hr)
+        let totalAmount = 0;
+        for (const res of resources) {
+            totalAmount += 35 * durationHours * res.quantity;
+        }
         const depositAmount = totalAmount * 0.50;
 
-        // Map frontend type to DB Enum if necessary
-        // Frontend uses 'TABLE_ROW', DB Enum uses 'TABLES_ONLY'
-        const dbType = type === 'TABLE_ROW' ? 'TABLES_ONLY' : type;
+        const expiresAt = new Date(now.getTime() + HOLD_DURATION_MINUTES * 60 * 1000);
 
-        // Insert Reservation
+        // Insert Reservation (Always FIELD)
         const { data: reservation, error: insertError } = await adminSupabase
             .from('reservations')
             .insert({
                 user_id: user.id,
-                type: dbType,
+                type: 'FIELD',
                 start_time: startDate.toISOString(),
                 end_time: endDate.toISOString(),
-                status: status,
-                hold_expires_at: holdExpiresAt,
+                status: 'HOLD',
+                hold_expires_at: expiresAt.toISOString(),
                 total_amount: totalAmount,
                 deposit_amount: depositAmount,
                 customer_note

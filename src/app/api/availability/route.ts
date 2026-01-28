@@ -66,35 +66,21 @@ export async function GET(request: Request) {
         // Generate Slots from 8:00 to 23:00 (15 slots)
         const startHour = 8;
         const endHour = 23;
-        const totalSlots = endHour - startHour; // 15 slots (8 to 22 start times? or 8 to 23 end times?)
-        // Let's go 8:00 to 23:00 (Last slot 22:00-23:00) => 15 slots.
 
         const resultResources = resources.map(res => {
             // Strictly filter reservations for this specific resource
             const resReservations = dayReservations.filter(r => {
                 const rResources = r.reservation_resources;
-                // Ensure rResources is an array
                 if (!Array.isArray(rResources)) return false;
-
-                // Check exact ID match
-                const hasResource = rResources.some((rr: any) => String(rr.resource_id) === String(res.id));
-                return hasResource;
+                return rResources.some((rr: any) => String(rr.resource_id) === String(res.id));
             });
 
-            // DEBUG: Log if we find reservations for a TABLE_ROW (which shouldn't exist per user)
-            if (res.type === 'TABLE_ROW' && resReservations.length > 0) {
-                console.log(`[AVAILABILITY_DEBUG] Unexpected reservation on Table ${res.name} (${res.id})`);
-                resReservations.forEach(r => {
-                    console.log(` - ResID: ${r.id || '?'}, Status: ${r.status}, Resources:`, JSON.stringify(r.reservation_resources));
-                });
-            }
-
-            // Compute Slots
+            // Iterate hours
             const slots = [];
             for (let h = startHour; h < endHour; h++) {
-                const timeLabel = `${h.toString().padStart(2, '0')}:00`; // "08:00"
+                const timeLabel = `${h.toString().padStart(2, '0')}:00`;
 
-                // Construct UTC Slot Range correctly using helper
+                // Construct UTC Slot Range
                 const slotRange = toUtcRangeFromLocal(dateStr, h, 1);
                 const slotStartVal = new Date(slotRange.startUtc).getTime();
                 const slotEndVal = new Date(slotRange.endUtc).getTime();
@@ -104,11 +90,10 @@ export async function GET(request: Request) {
                     continue;
                 }
 
-                // Calculate Used Capacity for this slot
-                let usedCapacity = 0;
+                // Calculate Status
+                let isBooked = false;
                 let blockingStatusDetails: string | null = null;
 
-                // Check overlapping reservations
                 for (const r of resReservations) {
                     const rStart = new Date(r.start_time).getTime();
                     const rEnd = new Date(r.end_time).getTime();
@@ -126,34 +111,26 @@ export async function GET(request: Request) {
                     } else if (r.status === 'HOLD') {
                         if (r.hold_expires_at) {
                             const expires = new Date(r.hold_expires_at).getTime();
-                            if (expires > new Date().getTime()) isValid = true; // Valid hold
+                            if (expires > new Date().getTime()) isValid = true;
                         }
                     }
 
                     if (isValid) {
-                        // Get quantity specific to this resource
-                        const rr = (r.reservation_resources as any[]).find((i: any) => String(i.resource_id) === String(res.id));
-                        const qty = rr ? (rr.quantity || 1) : 1;
-                        usedCapacity += qty;
-
-                        // Keep track of status for UI coloring (prioritize CONFIRMED)
+                        isBooked = true;
+                        // Prioritize confirmed status for UI
                         if (!blockingStatusDetails || r.status === 'CONFIRMED') {
                             blockingStatusDetails = r.status;
                         }
                     }
                 }
 
-                // Determine Final Status based on Capacity
+                // Determine Final Status
                 let status = 'AVAILABLE';
-                if (usedCapacity >= res.capacity) {
-                    // Fully booked
+                if (isBooked) {
                     if (blockingStatusDetails === 'CONFIRMED') status = 'CONFIRMED';
-                    else if (blockingStatusDetails === 'HOLD' || blockingStatusDetails === 'PAYMENT_PENDING') status = 'HOLD';
-                    else status = 'HOLD'; // Fallback
+                    else if (blockingStatusDetails === 'PAYMENT_PENDING') status = 'HOLD'; // Display pending as hold/busy
+                    else status = 'HOLD';
                 }
-
-                // For FIELDs usually capacity is 1, so usedCapacity >= 1 means busy.
-                // For TABLEs capacity > 1, so usedCapacity needs to reach capacity.
 
                 slots.push({
                     time: timeLabel,

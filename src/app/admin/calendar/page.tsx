@@ -13,11 +13,6 @@ export default function AdminCalendarPage() {
     const [reservations, setReservations] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
 
-    // UX Filters
-    const [viewType, setViewType] = useState<'FIELD' | 'TABLE_ROW'>('FIELD');
-    const [tableRow, setTableRow] = useState<'A' | 'B'>('A');
-    const [searchQuery, setSearchQuery] = useState('');
-
     // Fetch
     async function fetchData() {
         setLoading(true);
@@ -37,7 +32,9 @@ export default function AdminCalendarPage() {
             }
 
             const data = await res.json();
-            setResources(data.resources || []);
+            // Filter safe
+            const fields = (data.resources || []).filter((r: any) => r.type === 'FIELD');
+            setResources(fields);
             setReservations(data.reservations || []);
 
         } catch (e: any) {
@@ -50,30 +47,7 @@ export default function AdminCalendarPage() {
 
     useEffect(() => {
         fetchData();
-        // Simple "debounce" could be nice but not strictly required since date changes are discrete clicks
     }, [date]);
-
-    // FILTERING LOGIC
-    const filteredResources = resources.filter(res => {
-        // 1. Filter by Type
-        if (res.type !== viewType) return false;
-
-        // 2. Logic for TABLE_ROW
-        if (viewType === 'TABLE_ROW') {
-            // Filter by Row (A or B)
-            // Assumption: Names are "Mesa A-XX" or "Mesa B-XX"
-            if (tableRow === 'A' && !res.name.includes('Mesa A-')) return false;
-            if (tableRow === 'B' && !res.name.includes('Mesa B-')) return false;
-
-            // Search
-            if (searchQuery) {
-                const q = searchQuery.toLowerCase();
-                if (!res.name.toLowerCase().includes(q)) return false;
-            }
-        }
-
-        return true;
-    });
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -104,67 +78,26 @@ export default function AdminCalendarPage() {
                 </div>
             )}
 
-            {/* Filters Toolbar */}
+            {/* Toolbar */}
             <div className="bg-neutral-900/50 border border-neutral-800 p-4 rounded-xl flex flex-col md:flex-row gap-6 items-center justify-between backdrop-blur-sm sticky top-0 z-30 shadow-2xl">
-
-                {/* 1. View Type Selector */}
                 <div className="flex bg-black/40 p-1 rounded-lg border border-white/5">
                     <button
-                        onClick={() => setViewType('FIELD')}
-                        className={`px-4 py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${viewType === 'FIELD' ? 'bg-primary text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
+                        className="px-4 py-2 rounded-md text-xs font-bold uppercase tracking-wider bg-primary text-black shadow-lg"
                     >
                         Canchas
                     </button>
-                    <button
-                        onClick={() => setViewType('TABLE_ROW')}
-                        className={`px-4 py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${viewType === 'TABLE_ROW' ? 'bg-amber-500 text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
-                    >
-                        Mesas
-                    </button>
                 </div>
 
-                {/* 2. Extra Controls for Tables */}
-                {viewType === 'TABLE_ROW' && (
-                    <div className="flex items-center gap-4 flex-1 justify-center animate-in fade-in slide-in-from-top-2">
-                        {/* Row Selector */}
-                        <div className="flex bg-black/40 p-1 rounded-lg border border-white/5">
-                            <button
-                                onClick={() => setTableRow('A')}
-                                className={`px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${tableRow === 'A' ? 'bg-white/20 text-white' : 'text-neutral-500 hover:text-white'}`}
-                            >
-                                Fila A
-                            </button>
-                            <button
-                                onClick={() => setTableRow('B')}
-                                className={`px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${tableRow === 'B' ? 'bg-white/20 text-white' : 'text-neutral-500 hover:text-white'}`}
-                            >
-                                Fila B
-                            </button>
-                        </div>
-
-                        {/* Search */}
-                        <div className="relative w-full max-w-xs">
-                            <input
-                                type="text"
-                                placeholder="Buscar (ej: A-15)..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-black/40 border border-white/10 rounded-lg pl-3 pr-4 py-2 text-xs text-white placeholder:text-neutral-600 focus:outline-none focus:border-amber-500/50 transition-colors uppercase"
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {/* 3. Counter */}
+                {/* Counter */}
                 <div className="text-xs text-neutral-500 font-mono">
-                    Mostrando <span className="text-white font-bold">{filteredResources.length}</span> recursos
+                    Mostrando <span className="text-white font-bold">{resources.length}</span> canchas
                 </div>
             </div>
 
             {/* Grid */}
             <CalendarGrid
                 date={date}
-                resources={filteredResources}
+                resources={resources}
                 reservations={reservations}
                 loading={loading}
             />
