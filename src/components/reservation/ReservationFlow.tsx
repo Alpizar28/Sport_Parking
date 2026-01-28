@@ -134,14 +134,7 @@ export default function ReservationFlow({ initialType }: Props) {
         }
 
         // Timestamps
-        const m = startHour!.toString().padStart(2, '0');
-        const startIso = `${date}T${m}:00:00`;
-        const endHour = startHour! + duration;
-        const endM = endHour.toString().padStart(2, '0');
-        const endIso = `${date}T${endM}:00:00`;
 
-        const startDateObj = new Date(startIso);
-        const endDateObj = new Date(endIso);
 
         try {
             const res = await fetch('/api/reservations/hold', {
@@ -149,9 +142,11 @@ export default function ReservationFlow({ initialType }: Props) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: reservationType,
-                    start: startDateObj.toISOString(),
-                    end: endDateObj.toISOString(),
+                    dateLocal: date,
+                    startHour: startHour,
+                    duration: duration,
                     resources: selectedResources,
+                    customer_note: "" // Could be added in UI later
                 })
             });
 

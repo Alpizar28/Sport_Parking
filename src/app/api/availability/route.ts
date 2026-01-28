@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase';
 import { checkAvailability } from '@/lib/availability';
+import { dayBoundsUtc, toUtcRangeFromLocal } from '@/lib/time';
 
 // GET /api/availability
 export async function GET(request: Request) {
@@ -22,9 +23,8 @@ export async function GET(request: Request) {
 
         // ... comments ...
 
-        // Query reservations for that day directly.
-        const startOfDay = `${dateStr}T00:00:00`;
-        const endOfDay = `${dateStr}T23:59:59`;
+        // Query reservations for that day directly using UTC Bounds
+        const { startUtc, endUtc } = dayBoundsUtc(dateStr);
 
         // Use adminSupabase for fetching reservations to see ALL of them
         const { data: dayReservations, error } = await adminSupabase
@@ -34,8 +34,8 @@ export async function GET(request: Request) {
             reservation_resources(resource_id, quantity)
         `)
             .in('status', ['HOLD', 'PAYMENT_PENDING', 'CONFIRMED'])
-            .gte('end_time', startOfDay) // Overlap logic
-            .lte('start_time', endOfDay); // Overlap logic
+            .gte('end_time', startUtc) // Overlap logic
+            .lte('start_time', endUtc); // Overlap logic
 
         if (error) {
             console.error('DB Error fetching reservations:', error);
@@ -86,12 +86,10 @@ export async function GET(request: Request) {
 
                     if (isNaN(rStart.getTime()) || isNaN(rEnd.getTime())) return false;
 
-                    const nextH = h + 1;
-                    const nextTimeLabel = `${nextH.toString().padStart(2, '0')}:00`;
-
-                    // Force Panama dates for safety
-                    const slotStartVal = new Date(`${dateStr}T${timeLabel}:00`).getTime();
-                    const slotEndVal = new Date(`${dateStr}T${nextTimeLabel}:00`).getTime();
+                    // Construct UTC Slot Range correctly using helper
+                    const slotRange = toUtcRangeFromLocal(dateStr, h, 1);
+                    const slotStartVal = new Date(slotRange.startUtc).getTime();
+                    const slotEndVal = new Date(slotRange.endUtc).getTime();
 
                     if (isNaN(slotStartVal) || isNaN(slotEndVal)) return false;
 

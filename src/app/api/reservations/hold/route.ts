@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase';
 import { createAdminClient } from '@/lib/supabase'; // logic uses admin for writing holds securely
 import { checkAvailability } from '@/lib/availability';
 import { HOLD_DURATION_MINUTES } from '@/lib/constants';
+import { toUtcRangeFromLocal } from '@/lib/time';
 
 // POST /api/reservations/hold
 export async function POST(request: Request) {
@@ -19,28 +20,49 @@ export async function POST(request: Request) {
             );
         }
 
+
+
         // 2. Parse Body
         const body = await request.json();
-        const { type, start, end, resources, customer_note } = body;
+        /*
+          New Payload Contract:
+          {
+             type: 'FIELD' | 'TABLE_ROW',
+             dateLocal: 'YYYY-MM-DD',
+             startHour: number,
+             duration: number,
+             resources: [...],
+             customer_note: string
+          }
+        */
+        const { type, dateLocal, startHour, duration, resources, customer_note, start: legacyStart } = body;
 
         // Basic Validations
-        if (!start || !end || !resources || !Array.isArray(resources) || resources.length === 0) {
+        if (!dateLocal || startHour === undefined || !duration || !resources || !Array.isArray(resources) || resources.length === 0) {
+            // Fallback for legacy calls logic ? No, user wants migration.
             return NextResponse.json(
-                { error: { code: 'INVALID_REQUEST', message: 'Missing required fields' } },
+                { error: { code: 'INVALID_REQUEST', message: 'Missing required fields (dateLocal, startHour, duration, resources)' } },
                 { status: 400 }
             );
         }
 
-        const startDate = new Date(start);
-        const endDate = new Date(end);
+        // Compute UTC Bounds from Local Venue Time
+        let startUtc: string;
+        let endUtc: string;
+        try {
+            const range = toUtcRangeFromLocal(dateLocal, startHour, duration);
+            startUtc = range.startUtc;
+            endUtc = range.endUtc;
+        } catch (e: any) {
+            return NextResponse.json(
+                { error: { code: 'INVALID_DATE', message: e.message } },
+                { status: 400 }
+            );
+        }
+
+        const startDate = new Date(startUtc);
+        const endDate = new Date(endUtc);
         const now = new Date();
-
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-            return NextResponse.json(
-                { error: { code: 'INVALID_DATE', message: 'Invalid date format' } },
-                { status: 400 }
-            );
-        }
 
         if (startDate < now) {
             return NextResponse.json(
@@ -49,40 +71,14 @@ export async function POST(request: Request) {
             );
         }
 
-        if (endDate <= startDate) {
-            return NextResponse.json(
-                { error: { code: 'INVALID_RANGE', message: 'End date must be after start date' } },
-                { status: 400 }
-            );
-        }
-
-        // Validate Duration & Hourly Blocks (STRICT)
-        // 1. Minutes/Seconds must be 0
-        if (startDate.getUTCMinutes() !== 0 || startDate.getUTCSeconds() !== 0 || startDate.getUTCMilliseconds() !== 0 ||
-            endDate.getUTCMinutes() !== 0 || endDate.getUTCSeconds() !== 0 || endDate.getUTCMilliseconds() !== 0) {
-            return NextResponse.json(
-                { error: { code: 'RULE_VIOLATION', message: 'Solo se permiten reservas en horas enteras. (Ej: 18:00 a 19:00)' } },
-                { status: 422 }
-            );
-        }
-
-        const durationMs = endDate.getTime() - startDate.getTime();
-        const durationHours = durationMs / (1000 * 60 * 60);
-
-        // 2. Duration must be integer hours
-        if (!Number.isInteger(durationHours)) {
-            return NextResponse.json(
-                { error: { code: 'RULE_VIOLATION', message: 'La duración debe ser en bloques de 1 hora exacta.' } },
-                { status: 422 }
-            );
-        }
-
-        if (durationHours > 4) {
+        if (duration > 4) {
             return NextResponse.json(
                 { error: { code: 'RULE_VIOLATION', message: 'Reservation cannot exceed 4 hours' } },
                 { status: 422 }
             );
         }
+
+        const durationHours = duration; // Alias for reuse
 
 
         // 3a. Validate Resource Type Consistency (Hard Guard)
