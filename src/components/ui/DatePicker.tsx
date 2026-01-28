@@ -31,12 +31,6 @@ export default function DatePicker({ selectedDate, onChange }: DatePickerProps) 
     // Use Venue Timezone for "Today"
     const todayStr = getVenueDateString();
 
-    console.log('[DatePicker DEBUG]', {
-        TZ_VENUE,
-        todayStr,
-        selectedDate
-    });
-
     // Localized Month Names
     const monthNames = [
         'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',

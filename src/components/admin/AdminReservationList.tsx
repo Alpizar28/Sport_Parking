@@ -94,12 +94,27 @@ export default function AdminReservationList() {
 
                             <div className="flex gap-2">
                                 {res.status !== 'CANCELLED' && res.status !== 'EXPIRED' && (
-                                    <button
-                                        onClick={() => handleCancel(res.id)}
-                                        className="text-red-500 hover:text-red-400 text-sm border border-red-900/50 px-3 py-1 rounded hover:bg-red-900/20"
-                                    >
-                                        Cancelar
-                                    </button>
+                                    <>
+                                        {/* Example Confirm action if pending? */}
+                                        {res.status === 'PAYMENT_PENDING' && (
+                                            <button
+                                                // Implement handleConfirm logic if endpoint exists
+                                                className="flex items-center gap-1 text-emerald-500 hover:text-emerald-400 text-sm border border-emerald-900/50 px-3 py-1.5 rounded hover:bg-emerald-900/20 font-medium transition-colors"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                                Confirmar
+                                            </button>
+                                        )}
+
+                                        <button
+                                            onClick={() => handleCancel(res.id)}
+                                            className="flex items-center gap-1 text-red-500 hover:text-red-400 text-sm border border-red-900/50 px-3 py-1.5 rounded hover:bg-red-900/20 font-medium transition-colors"
+                                            title="Cancelar Reserva"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                            Cancelar
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         </div>

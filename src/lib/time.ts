@@ -78,21 +78,9 @@ export function isPastHour(hour: number, selectedDateString: string): boolean {
 
     // Same day: if selected hour <= current Panama hour, it's past/current (unavailable for booking start?)
     // Usually you can't book 17:00 if it is 17:15.
-    const isPast = hour <= pHour;
-
-    // Log diagnostic once (e.g. for hour 8) to avoid spam
-    if (hour === 8 && Math.random() < 0.05) {
-        console.log('[isPastHour Debug]', {
-            selectedDateString,
-            pDate,
-            hour,
-            pHour,
-            isPast
-        });
-    }
-
-    return isPast;
+    return hour <= pHour;
 }
+
 
 export function getVenueDateString(): string {
     const now = new Date();

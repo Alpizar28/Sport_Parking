@@ -52,11 +52,14 @@ export default function ReservationFlow({ initialType }: Props) {
             try {
                 const parsed = JSON.parse(saved);
                 if (parsed.date) setDate(parsed.date);
-                if (parsed.startHour) setStartHour(parsed.startHour);
+                // Do NOT restore startHour to force explicit selection
+                // if (parsed.startHour) setStartHour(parsed.startHour); 
                 if (parsed.duration) setDuration(parsed.duration);
             } catch (e) { console.error("Failed to load draft"); }
         } else {
-            setDate(new Date().toISOString().split('T')[0]);
+            // Let DatePicker handle default "today" via shared helper or empty
+            // Better to let user pick or component default? 
+            // Component defaults to today, so we can just set it here if we want consistency
         }
     }, []);
 
@@ -369,7 +372,15 @@ export default function ReservationFlow({ initialType }: Props) {
 
                         for (let i = 0; i < duration; i++) {
                             const checkH = h + i;
-                            if (checkH >= 24) { isFree = false; break; } // Out of bounds
+                            // Strict closing time at 24:00.
+                            // If duration pushes us to 24:00 (e.g. 23+1), that's fine (checkH=23).
+                            // If duration pushes us into 24+ (e.g. 23+2 -> checkH=24), that is invalid (Next Day / Closed).
+                            if (checkH >= 24) {
+                                isFree = false;
+                                // Debug log if needed
+                                // console.log("Time out of bounds", checkH);
+                                break;
+                            }
 
                             const timeLabel = `${checkH.toString().padStart(2, '0')}:00`;
                             const slot = res.slots?.find(s => s.time === timeLabel);

@@ -90,23 +90,32 @@ export default function TimePicker({ selectedStartHour, duration, onChange, onDu
                 <div className="flex gap-3 overflow-x-auto pb-1">
                     {[1, 2, 3, 4].map(dur => {
                         const isSelected = duration === dur;
-                        const endHour = (selectedStartHour || 0) + dur;
+                        const start = selectedStartHour || 0;
+                        const endHour = start + dur;
+                        const isValidDuration = endHour <= 24;
+
+                        // Also disable if the extended duration overlaps with a busy slot?
+                        // Ideally yes, but sticking to basic range check for now as requested.
 
                         return (
                             <button
                                 key={dur}
                                 onClick={() => onDurationChange(dur)}
+                                disabled={!isValidDuration}
                                 className={`
                                     flex-1 min-w-[80px] py-3 rounded-lg font-bold text-sm transition-all border
-                                    ${isSelected
+                                    ${!isValidDuration ? 'opacity-50 cursor-not-allowed bg-muted text-muted-foreground' : ''}
+                                    ${isSelected && isValidDuration
                                         ? 'bg-accent border-accent text-accent-foreground shadow-md shadow-accent/20 scale-105'
-                                        : 'bg-secondary border-border text-foreground hover:bg-secondary/80'
+                                        : (!isSelected && isValidDuration)
+                                            ? 'bg-secondary border-border text-foreground hover:bg-secondary/80'
+                                            : ''
                                     }
                                 `}
                             >
                                 {dur} h
                                 <span className="block text-[10px] opacity-80 font-normal">
-                                    {(selectedStartHour || 0)}:00 - {endHour}:00
+                                    {start}:00 - {endHour}:00
                                 </span>
                             </button>
                         );
