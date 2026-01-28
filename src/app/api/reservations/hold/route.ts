@@ -116,45 +116,49 @@ export async function POST(request: Request) {
 
         // 4. Create HOLD (Transaction simulation)
 
-        // Check active HOLDs for user (Rule: 1 active hold PER TYPE)
-        const { data: activeHolds } = await adminSupabase
-            .from('reservations')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('type', type) // Check only same type
-            .in('status', ['HOLD', 'PAYMENT_PENDING'])
-            .gt('hold_expires_at', now.toISOString()); // Check validity
+        // Check active HOLDs for user?
+        // Rules:
+        // - FIELD: 1 active hold/pending per user.
+        // - TABLE_ROW: If it's free and instant CONFIRMED, maybe allow multiple? 
+        //   BUT capacity check (step 3) already prevents overbooking.
+        //   Let's keep the "1 active hold" check only for non-confirmed reservations to prevent spamming holds.
+        //   Since Tables are instant confirmed, we skip this check if status becomes CONFIRMED.
 
-        if (activeHolds && activeHolds.length > 0) {
-            const msg = type === 'FIELD'
-                ? 'Ya tienes una reserva de cancha en proceso. Completa o cancélala antes de crear otra.'
-                : 'Ya tienes una reserva de mesa en proceso. Completa o cancélala antes de crear otra.';
-
-            return NextResponse.json(
-                { error: { code: 'ACTIVE_HOLD_EXISTS', message: msg } },
-                { status: 409 }
-            );
-        }
-
-        // Calculate expiration (10 mins from now standardized)
-        const expiresAt = new Date(now.getTime() + HOLD_DURATION_MINUTES * 60 * 1000);
-
-        // Calculate Amount (MOCK PRICING LOGIC - MVP)
         let totalAmount = 0;
         let status = 'HOLD';
+        let holdExpiresAt: string | null = null;
+        const defaultHoldExpiresAt = new Date(now.getTime() + HOLD_DURATION_MINUTES * 60 * 1000).toISOString();
 
         if (type === 'TABLE_ROW') {
             // Tables are free and auto-confirmed
             totalAmount = 0;
             status = 'CONFIRMED';
+            holdExpiresAt = null; // No expiration for confirmed
         } else {
             // Fields logic
-            for (const res of resources) {
-                // Determine price based on resource type or ID logic
-                // For MVP, if it passes as FIELD, we charge.
-                // Assuming all resources passed in this call match the 'type'
+            status = 'HOLD';
+            holdExpiresAt = defaultHoldExpiresAt;
 
-                // Fallback pricing if not explicit
+            // Check active HOLDs logic (moved inside else to skip for confirmed tables)
+            const { data: activeHolds } = await adminSupabase
+                .from('reservations')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('type', type)
+                .in('status', ['HOLD', 'PAYMENT_PENDING'])
+                .gt('hold_expires_at', now.toISOString());
+
+            if (activeHolds && activeHolds.length > 0) {
+                const msg = 'Ya tienes una reserva de cancha en proceso. Completa o cancélala antes de crear otra.';
+                return NextResponse.json(
+                    { error: { code: 'ACTIVE_HOLD_EXISTS', message: msg } },
+                    { status: 409 }
+                );
+            }
+
+            for (const res of resources) {
+                // Determine price...
+                // Fallback pricing
                 totalAmount += 35 * durationHours * res.quantity;
             }
         }
@@ -191,7 +195,7 @@ export async function POST(request: Request) {
                 start_time: startDate.toISOString(),
                 end_time: endDate.toISOString(),
                 status: status,
-                hold_expires_at: expiresAt.toISOString(),
+                hold_expires_at: holdExpiresAt,
                 total_amount: totalAmount,
                 deposit_amount: depositAmount,
                 customer_note
