@@ -1,9 +1,22 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase';
-import { createAdminClient } from '@/lib/supabase'; // logic uses admin for writing holds securely
+import { createAdminClient } from '@/lib/supabase';
 import { checkAvailability } from '@/lib/availability';
 import { HOLD_DURATION_MINUTES } from '@/lib/constants';
 import { toUtcRangeFromLocal } from '@/lib/time';
+
+// Security headers
+const SECURITY_HEADERS = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '1; mode=block',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+};
+
+// Input sanitization
+function sanitizeString(input: string): string {
+    return input.trim().replace(/[<>"']/g, '');
+}
 
 // POST /api/reservations/hold
 export async function POST(request: Request) {
@@ -25,9 +38,9 @@ export async function POST(request: Request) {
         // 2. Parse Body
         const body = await request.json();
         /*
-          New Payload Contract:
+          Payload Contract:
           {
-             type: 'FIELD' | 'TABLE_ROW',
+             type: 'FIELD' | 'EVENT',
              dateLocal: 'YYYY-MM-DD',
              startHour: number,
              duration: number,
@@ -37,19 +50,53 @@ export async function POST(request: Request) {
         */
         const { type, dateLocal, startHour, duration, resources, customer_note } = body;
 
-        // Basic Validations
+        // Input Validation & Sanitization
         if (!dateLocal || startHour === undefined || !duration || !resources || !Array.isArray(resources) || resources.length === 0) {
             return NextResponse.json(
-                { error: { code: 'INVALID_REQUEST', message: 'Missing required fields (dateLocal, startHour, duration, resources)' } },
-                { status: 400 }
+                { error: { code: 'INVALID_REQUEST', message: 'Missing required fields' } },
+                { status: 400, headers: SECURITY_HEADERS }
             );
         }
 
+        // Validate date format (YYYY-MM-DD)
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateLocal)) {
+            return NextResponse.json(
+                { error: { code: 'INVALID_DATE_FORMAT', message: 'Date must be in YYYY-MM-DD format' } },
+                { status: 400, headers: SECURITY_HEADERS }
+            );
+        }
+
+        // Validate numeric inputs
+        if (!Number.isInteger(startHour) || startHour < 0 || startHour > 23) {
+            return NextResponse.json(
+                { error: { code: 'INVALID_HOUR', message: 'Start hour must be between 0 and 23' } },
+                { status: 400, headers: SECURITY_HEADERS }
+            );
+        }
+
+        if (!Number.isInteger(duration) || duration < 1 || duration > 24) {
+            return NextResponse.json(
+                { error: { code: 'INVALID_DURATION', message: 'Duration must be between 1 and 24 hours' } },
+                { status: 400, headers: SECURITY_HEADERS }
+            );
+        }
+
+        // Validate resources array
+        if (resources.length > 10) {
+            return NextResponse.json(
+                { error: { code: 'TOO_MANY_RESOURCES', message: 'Maximum 10 resources per reservation' } },
+                { status: 400, headers: SECURITY_HEADERS }
+            );
+        }
+
+        // Sanitize customer note
+        const sanitizedNote = customer_note ? sanitizeString(customer_note).substring(0, 500) : '';
+
         // STRICT: Only allow FIELD reservations now
-        if (type !== 'FIELD' && type !== 'EVENT') { // Allow EVENT for admin blocks if needed, but UI primarily sends FIELD
+        if (type !== 'FIELD' && type !== 'EVENT') {
             return NextResponse.json(
                 { error: { code: 'INVALID_TYPE', message: 'Only FIELD reservations are supported.' } },
-                { status: 400 }
+                { status: 400, headers: SECURITY_HEADERS }
             );
         }
 
@@ -157,7 +204,7 @@ export async function POST(request: Request) {
                 hold_expires_at: expiresAt.toISOString(),
                 total_amount: totalAmount,
                 deposit_amount: depositAmount,
-                customer_note
+                customer_note: sanitizedNote
             })
             .select()
             .single();
@@ -198,7 +245,7 @@ export async function POST(request: Request) {
                 ...reservation,
                 resources: resources
             }
-        }, { status: 201 });
+        }, { status: 201, headers: SECURITY_HEADERS });
 
     } catch (err) {
         console.error('Unexpected Error:', err);

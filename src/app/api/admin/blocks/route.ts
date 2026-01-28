@@ -33,10 +33,9 @@ export async function POST(request: Request) {
     const adminDb = createAdminClient();
 
     // Create a reservation of type 'FIELD' or special type.
-    // The schema has enum 'reservation_type': 'FIELD', 'EVENT', 'TABLES_ONLY'.
+    // The schema has enum 'reservation_type': 'FIELD', 'EVENT'.
     // We can add 'BLOCK' or just use 'EVENT' with a note "ADMIN BLOCK".
     // Let's use 'EVENT' for now as generic, or better, stick to schema limits.
-    // Ideally schema should have 'BLOCK' but user provided strict schema in step 1.
     // I will use 'EVENT' and a specific user_id (the admin's).
 
     const { data: reservation, error } = await adminDb

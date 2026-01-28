@@ -1,71 +1,116 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-export async function middleware(request: NextRequest) {
-    let response = NextResponse.next({
-        request: {
-            headers: request.headers,
-        },
-    })
+// Security headers applied to all responses
+const SECURITY_HEADERS = {
+    // Prevent MIME type sniffing
+    'X-Content-Type-Options': 'nosniff',
 
-    // 1. Create Supabase Client compatible with Middleware
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                getAll() {
-                    return request.cookies.getAll()
-                },
-                setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-                    response = NextResponse.next({
-                        request: {
-                            headers: request.headers,
-                        },
-                    })
-                    cookiesToSet.forEach(({ name, value, options }) =>
-                        response.cookies.set(name, value, options)
-                    )
-                },
-            },
-        }
-    )
+    // Prevent clickjacking
+    'X-Frame-Options': 'DENY',
 
-    // 2. Refresh Session
-    // This is critical: getUser() refreshes the Auth Token if it's expired.
-    // Without this, Server Components might fail even if the user has a cookie.
-    const { data: { user } } = await supabase.auth.getUser()
+    // Enable XSS protection
+    'X-XSS-Protection': '1; mode=block',
 
-    // 3. Protected Routes Logic
-    const path = request.nextUrl.pathname;
+    // Force HTTPS
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
 
-    // Global Auth Guard: Dashboard and Admin require Login
-    if ((path.startsWith('/admin') || path.startsWith('/dashboard')) && !user) {
-        return NextResponse.redirect(new URL('/login', request.url))
+    // Content Security Policy
+    'Content-Security-Policy': [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://*.vercel-scripts.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "img-src 'self' data: https: blob:",
+        "font-src 'self' https://fonts.gstatic.com",
+        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://vercel.live",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'"
+    ].join('; '),
+
+    // Referrer Policy
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+
+    // Permissions Policy
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+};
+
+// Rate limiting configuration
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 100;
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function checkRateLimit(ip: string): boolean {
+    const now = Date.now();
+    const record = rateLimitMap.get(ip);
+
+    if (!record || now > record.resetTime) {
+        rateLimitMap.set(ip, {
+            count: 1,
+            resetTime: now + RATE_LIMIT_WINDOW
+        });
+        return true;
     }
 
-    // Admin Role Guard (Optional Optimization: Store role in metadata or cookie for speed check, 
-    // but strict check remains in Layout/DB). 
-    // For now, we rely on the strict DB check in the Admin Layout to verify the 'ADMIN' role.
-
-    // Redirect logged-in users away from Login/Register
-    if ((path === '/login' || path === '/register') && user) {
-        return NextResponse.redirect(new URL('/dashboard', request.url))
+    if (record.count >= MAX_REQUESTS_PER_WINDOW) {
+        return false;
     }
 
-    return response
+    record.count++;
+    return true;
 }
 
+// Clean up old rate limit records periodically
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of rateLimitMap.entries()) {
+        if (now > record.resetTime) {
+            rateLimitMap.delete(ip);
+        }
+    }
+}, RATE_LIMIT_WINDOW);
+
+export function middleware(request: NextRequest) {
+    // Get client IP (compatible with Vercel and local development)
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded ? forwarded.split(',')[0].trim() : 'unknown';
+
+    // Check rate limit
+    if (!checkRateLimit(ip)) {
+        return new NextResponse(
+            JSON.stringify({ error: 'Too many requests. Please try again later.' }),
+            {
+                status: 429,
+                headers: {
+                    ...SECURITY_HEADERS,
+                    'Content-Type': 'application/json',
+                    'Retry-After': '60'
+                }
+            }
+        );
+    }
+
+    // Continue with request and add security headers to response
+    const response = NextResponse.next();
+
+    // Add all security headers
+    Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {
+        response.headers.set(key, value);
+    });
+
+    return response;
+}
+
+// Apply middleware to all routes except static files
 export const config = {
     matcher: [
         /*
-         * Match all request paths except for the ones starting with:
+         * Match all request paths except:
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico (favicon file)
-         * - public files (images, etc)
+         * - public folder
          */
         '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
     ],
-}
+};
