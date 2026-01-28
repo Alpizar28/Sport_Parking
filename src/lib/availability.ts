@@ -130,6 +130,7 @@ export async function checkAvailability(
             if (info.type === 'FIELD') {
                 return { available: false, reason: `Resource ${info.name} is already booked` };
             }
+            console.warn(`Capacity exceeded for ${info.name}: used=${used} + req=${requested} > cap=${info.capacity}`);
             return {
                 available: false,
                 reason: `Not enough capacity for ${info.name}. Requested: ${requested}, Available: ${info.capacity - used}`

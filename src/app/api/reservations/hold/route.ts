@@ -178,12 +178,16 @@ export async function POST(request: Request) {
 
         const depositAmount = totalAmount * 0.50;
 
+        // Map frontend type to DB Enum if necessary
+        // Frontend uses 'TABLE_ROW', DB Enum uses 'TABLES_ONLY'
+        const dbType = type === 'TABLE_ROW' ? 'TABLES_ONLY' : type;
+
         // Insert Reservation
         const { data: reservation, error: insertError } = await adminSupabase
             .from('reservations')
             .insert({
                 user_id: user.id,
-                type,
+                type: dbType,
                 start_time: startDate.toISOString(),
                 end_time: endDate.toISOString(),
                 status: status,
