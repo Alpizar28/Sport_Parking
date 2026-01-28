@@ -32,6 +32,9 @@ export default function CalendarGrid({ date, resources, reservations, loading }:
     const gridMap = useMemo(() => {
         const map = new Map<string, Reservation | null>(); // key: "resId-hour" -> Reservation
 
+        console.log("DEBUG GRID: Resources", resources.length, "Reservations", reservations.length);
+        if (reservations.length > 0) console.log("First Res:", reservations[0]);
+
         reservations.forEach(res => {
             const start = new Date(res.start);
             const end = new Date(res.end);

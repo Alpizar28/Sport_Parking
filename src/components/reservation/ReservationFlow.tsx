@@ -19,12 +19,13 @@ type Resource = {
     slots: { time: string, status: string }[];
 };
 
-const STEPS = ['Fecha', 'Hora', 'Recursos', 'Confirmar'];
+const STEPS = ['Experiencia', 'Fecha', 'Hora', 'Recursos', 'Confirmar'];
 
 export default function ReservationFlow({ initialType }: Props) {
     const router = useRouter();
 
     // State Machine
+    const [reservationType, setReservationType] = useState<'FIELD' | 'TABLE_ROW'>('FIELD');
     const [currentStep, setCurrentStep] = useState(1);
     const [isSuccess, setIsSuccess] = useState(false);
     const [confirmedReservation, setConfirmedReservation] = useState<{ id: string } | null>(null);
@@ -39,6 +40,10 @@ export default function ReservationFlow({ initialType }: Props) {
     const [resourcesData, setResourcesData] = useState<Resource[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Table UX State
+    const [tableFilter, setTableFilter] = useState<'A' | 'B'>('A');
+    const [tableSearch, setTableSearch] = useState('');
 
     // Persistence Effect (Load)
     useEffect(() => {
@@ -59,10 +64,10 @@ export default function ReservationFlow({ initialType }: Props) {
     useEffect(() => {
         if (date && !isSuccess) {
             localStorage.setItem('reservation_draft', JSON.stringify({
-                date, startHour, duration, selectedResources
+                date, startHour, duration, selectedResources, reservationType
             }));
         }
-    }, [date, startHour, duration, selectedResources, isSuccess]);
+    }, [date, startHour, duration, selectedResources, isSuccess, reservationType]);
 
 
     // Fetch Availability
@@ -94,11 +99,12 @@ export default function ReservationFlow({ initialType }: Props) {
 
     // Handlers
     const handleNext = () => {
-        if (currentStep === 1 && !date) return alert("Selecciona una fecha");
-        if (currentStep === 2 && startHour === null) return alert("Selecciona hora de inicio");
-        if (currentStep === 3 && selectedResources.length === 0) return alert("Selecciona al menos un recurso");
+        if (currentStep === 1 && !reservationType) return alert("Selecciona una experiencia");
+        if (currentStep === 2 && !date) return alert("Selecciona una fecha");
+        if (currentStep === 3 && startHour === null) return alert("Selecciona hora de inicio");
+        if (currentStep === 4 && selectedResources.length === 0) return alert("Selecciona al menos un recurso");
 
-        if (currentStep < 4) setCurrentStep(c => c + 1);
+        if (currentStep < 5) setCurrentStep(c => c + 1);
         else handleCreateHold();
     };
 
@@ -142,7 +148,7 @@ export default function ReservationFlow({ initialType }: Props) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: initialType,
+                    type: reservationType,
                     start: startDateObj.toISOString(),
                     end: endDateObj.toISOString(),
                     resources: selectedResources,
@@ -196,25 +202,33 @@ export default function ReservationFlow({ initialType }: Props) {
                             </div>
                         </div>
 
-                        <p className="text-muted-foreground text-sm leading-relaxed">
-                            Hemos bloqueado tu espacio temporalmente. Para confirmar tu reserva, por favor realiza el pago manual a través de Yappy.
-                        </p>
+                        {reservationType === 'FIELD' ? (
+                            <>
+                                <p className="text-muted-foreground text-sm leading-relaxed">
+                                    Hemos bloqueado tu espacio temporalmente. Para confirmar tu reserva, por favor realiza el pago manual a través de Yappy.
+                                </p>
 
-                        <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-left space-y-4">
-                            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
-                                <div className="bg-primary/20 p-2 rounded-lg">
-                                    <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-left space-y-4">
+                                    <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+                                        <div className="bg-primary/20 p-2 rounded-lg">
+                                            <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-muted-foreground font-bold uppercase">Directorio Yappy</p>
+                                            <p className="text-lg font-bold text-white tracking-wide">@SPORTPARKINGGROUP</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-2">
+                                        <span className="text-sm font-medium text-gray-400">Total a Pagar</span>
+                                        <span className="text-2xl font-black text-primary">${(duration * 35 * selectedResources.length).toFixed(2)}</span>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-xs text-muted-foreground font-bold uppercase">Directorio Yappy</p>
-                                    <p className="text-lg font-bold text-white tracking-wide">@SPORTPARKINGGROUP</p>
-                                </div>
-                            </div>
-                            <div className="flex justify-between items-center pt-2">
-                                <span className="text-sm font-medium text-gray-400">Total a Pagar</span>
-                                <span className="text-2xl font-black text-primary">${(duration * 35 * selectedResources.length).toFixed(2)}</span>
-                            </div>
-                        </div>
+                            </>
+                        ) : (
+                            <p className="text-muted-foreground text-sm leading-relaxed">
+                                Tu mesa ha sido confirmada. ¡Te esperamos!
+                            </p>
+                        )}
 
                         <p className="text-xs text-muted-foreground/50 italic">
                             * Tu reserva será confirmada una vez verifiquemos el pago.
@@ -242,12 +256,77 @@ export default function ReservationFlow({ initialType }: Props) {
         switch (currentStep) {
             case 1:
                 return (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+                        <h2 className="text-xl font-bold text-white uppercase tracking-wide text-center">¿Qué deseas reservar hoy?</h2>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                            {/* Card: CANCHAS */}
+                            <button
+                                onClick={() => setReservationType('FIELD')}
+                                className={`relative group p-8 rounded-2xl border transition-all duration-300 text-left h-[280px] flex flex-col justify-end overflow-hidden
+                                    ${reservationType === 'FIELD'
+                                        ? 'border-primary bg-primary/10 ring-1 ring-primary shadow-[0_0_30px_-5px_rgba(16,185,129,0.3)]'
+                                        : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
+                                    }`}
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent z-10" />
+                                <div className="absolute inset-0 grayscale group-hover:grayscale-0 transition-all duration-500 opacity-60">
+                                    <div className="w-full h-full bg-[url('https://images.unsplash.com/photo-1575361204480-aadea25e6e68?q=80&w=2071&auto=format&fit=crop')] bg-cover bg-center" />
+                                </div>
+
+                                <div className="relative z-20 space-y-2">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors ${reservationType === 'FIELD' ? 'bg-primary text-black' : 'bg-white/10 text-white'}`}>
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                    </div>
+                                    <h3 className={`text-2xl font-black uppercase tracking-tighter ${reservationType === 'FIELD' ? 'text-primary' : 'text-white'}`}>Canchas Sintéticas</h3>
+                                    <p className="text-sm text-gray-300 font-medium">Fútbol 5 y 7. Iluminación profesional y pasto de primera generación.</p>
+                                </div>
+                                {reservationType === 'FIELD' && (
+                                    <div className="absolute top-4 right-4 z-20 bg-primary text-black text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest animate-in zoom-in">
+                                        Seleccionado
+                                    </div>
+                                )}
+                            </button>
+
+                            {/* Card: MESAS */}
+                            <button
+                                onClick={() => setReservationType('TABLE_ROW')}
+                                className={`relative group p-8 rounded-2xl border transition-all duration-300 text-left h-[280px] flex flex-col justify-end overflow-hidden
+                                    ${reservationType === 'TABLE_ROW'
+                                        ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500 shadow-[0_0_30px_-5px_rgba(245,158,11,0.3)]'
+                                        : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
+                                    }`}
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent z-10" />
+                                <div className="absolute inset-0 grayscale group-hover:grayscale-0 transition-all duration-500 opacity-60">
+                                    <div className="w-full h-full bg-[url('https://images.unsplash.com/photo-1543007630-9710e4a00a20?q=80&w=1935&auto=format&fit=crop')] bg-cover bg-center" />
+                                </div>
+
+                                <div className="relative z-20 space-y-2">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors ${reservationType === 'TABLE_ROW' ? 'bg-amber-500 text-black' : 'bg-white/10 text-white'}`}>
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                    </div>
+                                    <h3 className={`text-2xl font-black uppercase tracking-tighter ${reservationType === 'TABLE_ROW' ? 'text-amber-500' : 'text-white'}`}>Mesas Lounge</h3>
+                                    <p className="text-sm text-gray-300 font-medium">Disfruta del partido, bebidas y comida en nuestra zona exclusiva.</p>
+                                </div>
+                                {reservationType === 'TABLE_ROW' && (
+                                    <div className="absolute top-4 right-4 z-20 bg-amber-500 text-black text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest animate-in zoom-in">
+                                        Seleccionado
+                                    </div>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                );
+            case 2:
+                return (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
                         <h2 className="text-lg font-bold text-white uppercase tracking-wide">Selecciona la Fecha</h2>
                         <DatePicker selectedDate={date} onChange={setDate} />
                     </div>
                 );
-            case 2:
+            case 3:
+                // AGGREGATED AVAILABILITY LOGIC ENDS HERE
                 if (loading) {
                     return (
                         <div className="flex flex-col items-center justify-center py-20 space-y-4 animate-in fade-in">
@@ -257,7 +336,7 @@ export default function ReservationFlow({ initialType }: Props) {
                     );
                 }
 
-                // Aggregate availability for TimePicker (Step 2)
+                // Aggregate availability for TimePicker (Step 3)
                 const aggregatedSlots: Record<number, 'AVAILABLE' | 'HOLD' | 'CONFIRMED'> = {};
 
                 // Initialize 8-23
@@ -265,7 +344,7 @@ export default function ReservationFlow({ initialType }: Props) {
                     const timeLabel = `${h.toString().padStart(2, '0')}:00`;
 
                     // Get status for this hour across all resources
-                    const statuses = resourcesData.map(r => {
+                    const statuses = resourcesData.filter(r => r.type === reservationType).map(r => {
                         const slot = r.slots?.find(s => s.time === timeLabel);
                         return (slot?.status as any) || 'AVAILABLE';
                     });
@@ -302,10 +381,44 @@ export default function ReservationFlow({ initialType }: Props) {
                         </div>
                     </div>
                 );
-            case 3:
+            case 4:
                 return (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                        <h2 className="text-lg font-bold text-white uppercase tracking-wide">Recursos Disponibles</h2>
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-lg font-bold text-white uppercase tracking-wide">Recursos Disponibles</h2>
+                        </div>
+
+                        {/* TABLE UX CONTROLS */}
+                        {reservationType === 'TABLE_ROW' && (
+                            <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                                <div className="flex bg-white/5 p-1 rounded-lg border border-white/10 self-start">
+                                    <button
+                                        onClick={() => setTableFilter('A')}
+                                        className={`px-4 py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${tableFilter === 'A' ? 'bg-amber-500 text-black shadow-lg' : 'text-neutral-400 hover:text-white'}`}
+                                    >
+                                        Fila A
+                                    </button>
+                                    <button
+                                        onClick={() => setTableFilter('B')}
+                                        className={`px-4 py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${tableFilter === 'B' ? 'bg-amber-500 text-black shadow-lg' : 'text-neutral-400 hover:text-white'}`}
+                                    >
+                                        Fila B
+                                    </button>
+                                </div>
+                                <div className="relative flex-1">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-neutral-500">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar mesa (ej: A-05)..."
+                                        value={tableSearch}
+                                        onChange={(e) => setTableSearch(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-amber-500/50 transition-colors uppercase"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         {/* Resource Grid */}
                         <div className="bg-card border border-white/5 rounded-2xl p-6 shadow-2xl backdrop-blur-sm">
@@ -315,57 +428,70 @@ export default function ReservationFlow({ initialType }: Props) {
                             {loading && <div className="text-primary font-bold animate-pulse mb-4">Verificando disponibilidad...</div>}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {resourcesData.map(res => {
-                                    const isSelected = selectedResources.some(r => r.resource_id === res.resource_id);
+                                {resourcesData
+                                    .filter(r => r.type === reservationType)
+                                    .filter(r => {
+                                        if (reservationType !== 'TABLE_ROW') return true;
 
-                                    // Availability Check
-                                    let isResourceBusy = false;
-                                    if (startHour !== null) {
-                                        for (let i = 0; i < duration; i++) {
-                                            const timeLabel = `${(startHour + i).toString().padStart(2, '0')}:00`;
-                                            const slot = res.slots?.find(s => s.time === timeLabel);
-                                            if (!slot || slot.status !== 'AVAILABLE') isResourceBusy = true;
+                                        // Filter Row
+                                        if (!r.name.includes(`Mesa ${tableFilter}-`)) return false;
+
+                                        // Filter Search
+                                        if (tableSearch && !r.name.toLowerCase().includes(tableSearch.toLowerCase())) return false;
+
+                                        return true;
+                                    })
+                                    .map(res => {
+                                        const isSelected = selectedResources.some(r => r.resource_id === res.resource_id);
+
+                                        // Availability Check
+                                        let isResourceBusy = false;
+                                        if (startHour !== null) {
+                                            for (let i = 0; i < duration; i++) {
+                                                const timeLabel = `${(startHour + i).toString().padStart(2, '0')}:00`;
+                                                const slot = res.slots?.find(s => s.time === timeLabel);
+                                                if (!slot || slot.status !== 'AVAILABLE') isResourceBusy = true;
+                                            }
                                         }
-                                    }
 
-                                    return (
-                                        <button
-                                            key={res.resource_id}
-                                            disabled={isResourceBusy}
-                                            onClick={() => toggleResource(res.resource_id)}
-                                            className={`
+                                        return (
+                                            <button
+                                                key={res.resource_id}
+                                                disabled={isResourceBusy}
+                                                onClick={() => toggleResource(res.resource_id)}
+                                                className={`
                                                 w-full p-4 rounded-xl border transition-all flex justify-between items-center text-left group
                                                 ${isResourceBusy
-                                                    ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed grayscale'
-                                                    : isSelected
-                                                        ? 'border-primary bg-primary/10 ring-1 ring-primary shadow-[0_0_20px_-5px_rgba(16,185,129,0.3)]'
-                                                        : 'border-white/10 bg-secondary/50 hover:bg-secondary hover:border-primary/50'
-                                                }
+                                                        ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed grayscale'
+                                                        : isSelected
+                                                            ? 'border-primary bg-primary/10 ring-1 ring-primary shadow-[0_0_20px_-5px_rgba(16,185,129,0.3)]'
+                                                            : 'border-white/10 bg-secondary/50 hover:bg-secondary hover:border-primary/50'
+                                                    }
                                             `}
-                                        >
-                                            <div>
-                                                <div className={`font-bold transition-colors ${isSelected ? 'text-primary' : 'text-white group-hover:text-primary'}`}>
-                                                    {res.name}
+                                            >
+                                                <div>
+                                                    <div className={`font-bold transition-colors ${isSelected ? 'text-primary' : 'text-white group-hover:text-primary'}`}>
+                                                        {res.name}
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground font-medium tracking-wide">{res.type}</div>
                                                 </div>
-                                                <div className="text-xs text-muted-foreground font-medium tracking-wide">{res.type}</div>
-                                            </div>
-                                            <div>
-                                                {isResourceBusy ? (
-                                                    <span className="px-2 py-1 bg-red-500/10 text-red-500 rounded text-[10px] font-bold uppercase tracking-wider border border-red-500/20">Ocupado</span>
-                                                ) : isSelected ? (
-                                                    <span className="px-2 py-1 bg-primary/20 text-primary rounded text-[10px] font-bold uppercase tracking-wider border border-primary/20">Listo</span>
-                                                ) : (
-                                                    <span className="px-2 py-1 bg-white/5 text-muted-foreground rounded text-[10px] font-bold uppercase tracking-wider group-hover:bg-primary/20 group-hover:text-primary transition-colors">Libre</span>
-                                                )}
-                                            </div>
-                                        </button>
-                                    );
-                                })}
+                                                <div>
+                                                    {isResourceBusy ? (
+                                                        <span className="px-2 py-1 bg-red-500/10 text-red-500 rounded text-[10px] font-bold uppercase tracking-wider border border-red-500/20">Ocupado</span>
+                                                    ) : isSelected ? (
+                                                        <span className="px-2 py-1 bg-primary/20 text-primary rounded text-[10px] font-bold uppercase tracking-wider border border-primary/20">Listo</span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 bg-white/5 text-muted-foreground rounded text-[10px] font-bold uppercase tracking-wider group-hover:bg-primary/20 group-hover:text-primary transition-colors">Libre</span>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                             </div>
                         </div>
                     </div>
                 );
-            case 4:
+            case 5:
                 return (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
                         <h2 className="text-lg font-bold text-white uppercase tracking-wide">Resumen de Reserva</h2>
@@ -387,27 +513,37 @@ export default function ReservationFlow({ initialType }: Props) {
                                     })}
                                 </div>
                             </div>
-                            <div className="pt-4 flex justify-between items-center">
-                                <span className="text-xl font-bold text-white uppercase tracking-tighter">Total Estimado</span>
-                                <span className="text-2xl font-black text-emerald-500">${(duration * 35 * selectedResources.length).toFixed(2)}</span>
-                            </div>
-                        </div>
+                            {reservationType === 'FIELD' ? (
+                                <>
+                                    <div className="pt-4 flex justify-between items-center">
+                                        <span className="text-xl font-bold text-white uppercase tracking-tighter">Total Estimado</span>
+                                        <span className="text-2xl font-black text-emerald-500">${(duration * 35 * selectedResources.length).toFixed(2)}</span>
+                                    </div>
 
-                        <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex gap-3 items-start">
-                            <div className="text-blue-400 mt-1">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            </div>
-                            <div>
-                                <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wide mb-1">Información de Pago</h4>
-                                <p className="text-xs text-muted-foreground">Al confirmar, recibirás las instrucciones para realizar el pago por Yappy. Tu reserva quedará en estado "En Revisión" hasta validar el comprobante.</p>
-                            </div>
-                        </div>
 
-                        {error && (
-                            <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm font-medium">
-                                {error}
-                            </div>
-                        )}
+                                    <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex gap-3 items-start">
+                                        <div className="text-blue-400 mt-1">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wide mb-1">Información de Pago</h4>
+                                            <p className="text-xs text-muted-foreground">Al confirmar, recibirás las instrucciones para realizar el pago por Yappy. Tu reserva quedará en estado "En Revisión" hasta validar el comprobante.</p>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="pt-4 text-center border-t border-white/5 mt-4">
+                                    <span className="block text-amber-500 font-bold uppercase tracking-widest text-sm mb-1">Reserva Gratuita</span>
+                                    <p className="text-xs text-muted-foreground">Tu mesa será reservada inmediatamente sin costo.</p>
+                                </div>
+                            )}
+
+                            {error && (
+                                <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm font-medium">
+                                    {error}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 );
         }
@@ -415,7 +551,7 @@ export default function ReservationFlow({ initialType }: Props) {
 
     return (
         <ReservationLayout
-            title={initialType === 'FIELD' ? 'Reserva de Cancha' : 'Reserva de Evento'}
+            title={reservationType === 'FIELD' ? 'Reserva de Cancha' : 'Reserva de Mesa'}
             subtitle={isSuccess ? 'Proceso Finalizado' : 'Configura tu experiencia'}
             showBack={!isSuccess}
             onBack={handleBack}
@@ -439,11 +575,11 @@ export default function ReservationFlow({ initialType }: Props) {
                         </button>
                         <button
                             onClick={handleNext}
-                            disabled={loading || (currentStep === 1 && !date) || (currentStep === 2 && !startHour) || (currentStep === 3 && selectedResources.length === 0)}
+                            disabled={loading || (currentStep === 2 && !date) || (currentStep === 3 && !startHour) || (currentStep === 4 && selectedResources.length === 0)}
                             className={`flex-[2] py-4 px-6 rounded-sm font-bold text-primary-foreground uppercase tracking-widest text-sm shadow-[0_0_20px_-5px_rgba(16,185,129,0.3)] transition-all transform active:scale-95 disabled:opacity-50 disabled:scale-100 ${loading ? 'bg-primary/50 cursor-not-allowed' : 'bg-primary hover:bg-emerald-400 hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.5)]'
                                 }`}
                         >
-                            {loading ? 'Procesando...' : currentStep === 4 ? 'Solicitar Reserva' : 'Continuar'}
+                            {loading ? 'Procesando...' : currentStep === 5 ? 'Solicitar Reserva' : 'Continuar'}
                         </button>
                     </div>
                 </div>

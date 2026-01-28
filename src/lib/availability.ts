@@ -58,6 +58,7 @@ export async function checkAvailability(
       status,
       start_time,
       end_time,
+      hold_expires_at,
       reservation_resources!inner (
         resource_id,
         quantity
@@ -77,8 +78,16 @@ export async function checkAvailability(
     const usageMap = new Map<string, number>();
 
     // Fill usage from conflicts
+    const now = new Date();
     if (conflicts) {
         for (const res of conflicts) {
+            // Check Expiration for HOLD
+            if (res.status === 'HOLD') {
+                if (!res.hold_expires_at) continue; // Treat missing expiry as expired/invalid (safe default for cleanup) or blocked? Prompt says "HOLD bloquea SOLO si hold_expires_at > now()". So if missing, it logicallly fails "hold_expires_at > now", so it shouldn't block.
+                const expires = new Date(res.hold_expires_at);
+                if (expires <= now) continue; // Expired, ignore
+            }
+
             // @ts-ignore - supabase types might be loose here without full generation
             const resResources = res.reservation_resources as any[];
             for (const rr of resResources) {

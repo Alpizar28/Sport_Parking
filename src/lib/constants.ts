@@ -1,0 +1,1 @@
+export const HOLD_DURATION_MINUTES = 10;

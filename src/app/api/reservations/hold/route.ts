@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase';
 import { createAdminClient } from '@/lib/supabase'; // logic uses admin for writing holds securely
 import { checkAvailability } from '@/lib/availability';
+import { HOLD_DURATION_MINUTES } from '@/lib/constants';
 
 // POST /api/reservations/hold
 export async function POST(request: Request) {
@@ -111,27 +112,69 @@ export async function POST(request: Request) {
             );
         }
 
-        // Calculate expiration (15 mins from now)
-        const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
+        // Calculate expiration (10 mins from now standardized)
+        const expiresAt = new Date(now.getTime() + HOLD_DURATION_MINUTES * 60 * 1000);
 
         // Calculate Amount (MOCK PRICING LOGIC - MVP)
-        // In a real app we'd fetch prices from DB.
-        // MVP Rule: Field = $40/hr, Tables = $10 (flat) - JUST AN EXAMPLE
-        // We should probably rely on a prices table or hardcoded map for MVP.
-        // Let's assume a simple logic or receive from client (BAD PRACTICE, but if validated).
-        // Better: Hardcoded simple map.
         let totalAmount = 0;
+        let status = 'HOLD';
 
-        // Simple Pricing Mock
-        for (const res of resources) {
-            if (res.resource_id.includes('field')) {
-                totalAmount += 40 * durationHours;
-            } else if (res.resource_id.includes('table')) {
-                totalAmount += 10 * res.quantity;
+        if (type === 'TABLE_ROW') {
+            // Tables are free and auto-confirmed
+            totalAmount = 0;
+            status = 'CONFIRMED';
+        } else {
+            // Fields logic
+            for (const res of resources) {
+                // Determine price based on resource type or ID logic
+                // For MVP, if it passes as FIELD, we charge.
+                // Assuming all resources passed in this call match the 'type'
+
+                // Fallback pricing if not explicit
+                totalAmount += 35 * durationHours * res.quantity;
             }
         }
-        const depositAmount = totalAmount * 0.50;
 
+        // SECURITY CHECK FOR TABLE_ROW (STRICT NO OVERLAP)
+        if (type === 'TABLE_ROW') {
+            const resourceIds = resources.map((r: any) => r.resource_id);
+
+            // Check if selected resources are booked in conflicting status
+            // Using adminSupabase to see ALL reservations
+            const { data: conflicts } = await adminSupabase
+                .from('reservation_resources')
+                .select(`
+                    reservation_id,
+                    reservations!inner (
+                        status, start_time, end_time, hold_expires_at
+                    )
+                `)
+                .in('resource_id', resourceIds)
+                .in('reservations.status', ['CONFIRMED', 'PAYMENT_PENDING', 'HOLD'])
+                .filter('reservations.start_time', 'lt', endDate.toISOString())
+                .filter('reservations.end_time', 'gt', startDate.toISOString());
+
+            // Filter out expired HOLDs
+            const activeConflicts = conflicts?.filter((c: any) => {
+                const r = c.reservations;
+                if (r.status === 'CONFIRMED' || r.status === 'PAYMENT_PENDING') return true;
+                if (r.status === 'HOLD') {
+                    if (!r.hold_expires_at) return false;
+                    if (new Date(r.hold_expires_at) > new Date()) return true; // Active hold
+                    return false; // Expired
+                }
+                return false;
+            });
+
+            if (activeConflicts && activeConflicts.length > 0) {
+                return NextResponse.json(
+                    { error: { code: 'CONFLICT', message: 'Una o más mesas seleccionadas ya no están disponibles.' } },
+                    { status: 409 }
+                );
+            }
+        }
+
+        const depositAmount = totalAmount * 0.50;
 
         // Insert Reservation
         const { data: reservation, error: insertError } = await adminSupabase
@@ -141,7 +184,7 @@ export async function POST(request: Request) {
                 type,
                 start_time: startDate.toISOString(),
                 end_time: endDate.toISOString(),
-                status: 'HOLD',
+                status: status,
                 hold_expires_at: expiresAt.toISOString(),
                 total_amount: totalAmount,
                 deposit_amount: depositAmount,

@@ -99,15 +99,12 @@ export async function GET(request: Request) {
                     if (!overlap) return false;
 
                     // If overlap, check status validity
-                    if (r.status === 'CONFIRMED') return true;
-                    if (r.status === 'HOLD' || r.status === 'PAYMENT_PENDING') {
-                        // Check expiration
-                        if (r.hold_expires_at) {
-                            const expires = new Date(r.hold_expires_at);
-                            if (expires.getTime() > new Date().getTime()) return true; // Valid hold
-                            return false; // Expired, treat as available
-                        }
-                        return true; // Default hold valid if no expiry set? Or assume valid.
+                    if (r.status === 'CONFIRMED' || r.status === 'PAYMENT_PENDING') return true;
+                    if (r.status === 'HOLD') {
+                        if (!r.hold_expires_at) return false; // No expiry = invalid/expired/legacy hold that shouldn't block
+                        const expires = new Date(r.hold_expires_at);
+                        if (expires.getTime() > new Date().getTime()) return true; // Valid hold
+                        return false; // Expired
                     }
                     return false;
                 });

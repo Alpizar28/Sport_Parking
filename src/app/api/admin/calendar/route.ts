@@ -57,20 +57,31 @@ export async function GET(request: Request) {
                 .in('status', ['HOLD', 'PAYMENT_PENDING', 'CONFIRMED'])
                 .lte('start_time', endOfDay)
                 .gte('end_time', startOfDay)
+                .gte('end_time', startOfDay)
         ]);
 
         if (resourcesRes.error) throw resourcesRes.error;
         if (reservationsRes.error) throw reservationsRes.error;
 
+        const now = new Date();
+
         // 6. Map Data to Minimal Format
-        const reservations = reservationsRes.data.map((r: any) => ({
-            id: r.id,
-            start: r.start_time,
-            end: r.end_time,
-            status: r.status,
-            expiresAt: r.hold_expires_at,
-            resourceIds: r.reservation_resources.map((rr: any) => rr.resource_id)
-        }));
+        const reservations = reservationsRes.data
+            .filter((r: any) => {
+                if (r.status === 'HOLD') {
+                    if (!r.hold_expires_at) return false;
+                    if (new Date(r.hold_expires_at) <= now) return false;
+                }
+                return true;
+            })
+            .map((r: any) => ({
+                id: r.id,
+                start: r.start_time,
+                end: r.end_time,
+                status: r.status,
+                expiresAt: r.hold_expires_at,
+                resourceIds: r.reservation_resources.map((rr: any) => rr.resource_id)
+            }));
 
         return NextResponse.json({
             date: dateStr,
