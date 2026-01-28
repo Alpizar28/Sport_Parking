@@ -4,6 +4,8 @@ import { checkAvailability } from '@/lib/availability';
 import { dayBoundsUtc, toUtcRangeFromLocal } from '@/lib/time';
 
 // GET /api/availability
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
     try {
         const supabase = await createClient();
@@ -27,15 +29,16 @@ export async function GET(request: Request) {
         const { startUtc, endUtc } = dayBoundsUtc(dateStr);
 
         // Use adminSupabase for fetching reservations to see ALL of them
+        // Overlap logic: start < rangeEnd AND end > rangeStart
         const { data: dayReservations, error } = await adminSupabase
             .from('reservations')
             .select(`
-            start_time, end_time, status, hold_expires_at,
+            id, start_time, end_time, status, hold_expires_at,
             reservation_resources(resource_id, quantity)
         `)
             .in('status', ['HOLD', 'PAYMENT_PENDING', 'CONFIRMED'])
-            .gte('end_time', startUtc) // Overlap logic
-            .lte('start_time', endUtc); // Overlap logic
+            .lt('start_time', endUtc)
+            .gt('end_time', startUtc);
 
         if (error) {
             console.error('DB Error fetching reservations:', error);
@@ -67,56 +70,95 @@ export async function GET(request: Request) {
         // Let's go 8:00 to 23:00 (Last slot 22:00-23:00) => 15 slots.
 
         const resultResources = resources.map(res => {
-            const resReservations = dayReservations.filter(r =>
-                // @ts-ignore
-                Array.isArray(r.reservation_resources) && r.reservation_resources.some((rr: any) => rr.resource_id === res.id)
-            );
+            // Strictly filter reservations for this specific resource
+            const resReservations = dayReservations.filter(r => {
+                const rResources = r.reservation_resources;
+                // Ensure rResources is an array
+                if (!Array.isArray(rResources)) return false;
+
+                // Check exact ID match
+                const hasResource = rResources.some((rr: any) => String(rr.resource_id) === String(res.id));
+                return hasResource;
+            });
+
+            // DEBUG: Log if we find reservations for a TABLE_ROW (which shouldn't exist per user)
+            if (res.type === 'TABLE_ROW' && resReservations.length > 0) {
+                console.log(`[AVAILABILITY_DEBUG] Unexpected reservation on Table ${res.name} (${res.id})`);
+                resReservations.forEach(r => {
+                    console.log(` - ResID: ${r.id || '?'}, Status: ${r.status}, Resources:`, JSON.stringify(r.reservation_resources));
+                });
+            }
 
             // Compute Slots
             const slots = [];
             for (let h = startHour; h < endHour; h++) {
                 const timeLabel = `${h.toString().padStart(2, '0')}:00`; // "08:00"
 
-                // Check if this hour is busy
-                // Check if this hour is busy
-                // Find conflicting reservation
-                const busyRes = resReservations.find(r => {
-                    const rStart = new Date(r.start_time);
-                    const rEnd = new Date(r.end_time);
+                // Construct UTC Slot Range correctly using helper
+                const slotRange = toUtcRangeFromLocal(dateStr, h, 1);
+                const slotStartVal = new Date(slotRange.startUtc).getTime();
+                const slotEndVal = new Date(slotRange.endUtc).getTime();
 
-                    if (isNaN(rStart.getTime()) || isNaN(rEnd.getTime())) return false;
-
-                    // Construct UTC Slot Range correctly using helper
-                    const slotRange = toUtcRangeFromLocal(dateStr, h, 1);
-                    const slotStartVal = new Date(slotRange.startUtc).getTime();
-                    const slotEndVal = new Date(slotRange.endUtc).getTime();
-
-                    if (isNaN(slotStartVal) || isNaN(slotEndVal)) return false;
-
-                    const overlap = (Math.max(rStart.getTime(), slotStartVal) < Math.min(rEnd.getTime(), slotEndVal));
-                    if (!overlap) return false;
-
-                    // If overlap, check status validity
-                    if (r.status === 'CONFIRMED' || r.status === 'PAYMENT_PENDING') return true;
-                    if (r.status === 'HOLD') {
-                        if (!r.hold_expires_at) return false; // No expiry = invalid/expired/legacy hold that shouldn't block
-                        const expires = new Date(r.hold_expires_at);
-                        if (expires.getTime() > new Date().getTime()) return true; // Valid hold
-                        return false; // Expired
-                    }
-                    return false;
-                });
-
-                let status = 'AVAILABLE';
-                if (busyRes) {
-                    if (busyRes.status === 'CONFIRMED') status = 'CONFIRMED';
-                    else if (busyRes.status === 'HOLD' || busyRes.status === 'PAYMENT_PENDING') status = 'HOLD';
+                if (isNaN(slotStartVal) || isNaN(slotEndVal)) {
+                    slots.push({ time: timeLabel, status: 'AVAILABLE', detail: 'Invalid Date' });
+                    continue;
                 }
+
+                // Calculate Used Capacity for this slot
+                let usedCapacity = 0;
+                let blockingStatusDetails: string | null = null;
+
+                // Check overlapping reservations
+                for (const r of resReservations) {
+                    const rStart = new Date(r.start_time).getTime();
+                    const rEnd = new Date(r.end_time).getTime();
+
+                    if (isNaN(rStart) || isNaN(rEnd)) continue;
+
+                    // Strict Overlap Check
+                    const overlap = (Math.max(rStart, slotStartVal) < Math.min(rEnd, slotEndVal));
+                    if (!overlap) continue;
+
+                    // Validate Status Validity
+                    let isValid = false;
+                    if (r.status === 'CONFIRMED' || r.status === 'PAYMENT_PENDING') {
+                        isValid = true;
+                    } else if (r.status === 'HOLD') {
+                        if (r.hold_expires_at) {
+                            const expires = new Date(r.hold_expires_at).getTime();
+                            if (expires > new Date().getTime()) isValid = true; // Valid hold
+                        }
+                    }
+
+                    if (isValid) {
+                        // Get quantity specific to this resource
+                        const rr = (r.reservation_resources as any[]).find((i: any) => String(i.resource_id) === String(res.id));
+                        const qty = rr ? (rr.quantity || 1) : 1;
+                        usedCapacity += qty;
+
+                        // Keep track of status for UI coloring (prioritize CONFIRMED)
+                        if (!blockingStatusDetails || r.status === 'CONFIRMED') {
+                            blockingStatusDetails = r.status;
+                        }
+                    }
+                }
+
+                // Determine Final Status based on Capacity
+                let status = 'AVAILABLE';
+                if (usedCapacity >= res.capacity) {
+                    // Fully booked
+                    if (blockingStatusDetails === 'CONFIRMED') status = 'CONFIRMED';
+                    else if (blockingStatusDetails === 'HOLD' || blockingStatusDetails === 'PAYMENT_PENDING') status = 'HOLD';
+                    else status = 'HOLD'; // Fallback
+                }
+
+                // For FIELDs usually capacity is 1, so usedCapacity >= 1 means busy.
+                // For TABLEs capacity > 1, so usedCapacity needs to reach capacity.
 
                 slots.push({
                     time: timeLabel,
                     status: status,
-                    detail: busyRes?.status
+                    detail: status !== 'AVAILABLE' ? blockingStatusDetails : undefined
                 });
             }
 
@@ -129,9 +171,14 @@ export async function GET(request: Request) {
             };
         });
 
+        // Add Cache-Control header to prevent stale UI
         return NextResponse.json({
             date: dateStr,
             resources: resultResources
+        }, {
+            headers: {
+                'Cache-Control': 'no-store, max-age=0'
+            }
         });
 
     } catch (err: any) {
