@@ -3,6 +3,8 @@ import { Users, Clock, CheckCircle, Calendar, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { formatTime } from '@/lib/formatters';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminSummaryPage() {
     const stats = await getAdminStats();
 

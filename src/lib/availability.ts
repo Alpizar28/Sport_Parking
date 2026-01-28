@@ -83,17 +83,29 @@ export async function checkAvailability(
         for (const res of conflicts) {
             // Check Expiration for HOLD
             if (res.status === 'HOLD') {
-                if (!res.hold_expires_at) continue; // Treat missing expiry as expired/invalid (safe default for cleanup) or blocked? Prompt says "HOLD bloquea SOLO si hold_expires_at > now()". So if missing, it logicallly fails "hold_expires_at > now", so it shouldn't block.
+                if (!res.hold_expires_at) continue;
                 const expires = new Date(res.hold_expires_at);
                 if (expires <= now) continue; // Expired, ignore
             }
 
-            // @ts-ignore - supabase types might be loose here without full generation
-            const resResources = res.reservation_resources as any[];
-            for (const rr of resResources) {
-                if (resourceIds.includes(rr.resource_id)) {
-                    const current = usageMap.get(rr.resource_id) || 0;
-                    usageMap.set(rr.resource_id, current + rr.quantity);
+            // Inspect reservation resources
+            const resResources = res.reservation_resources;
+            if (Array.isArray(resResources)) {
+                for (const rr of resResources) {
+                    // Strict filtering: only count if this resource is in our requested list
+                    // And ensure we are summing for the correct resource ID
+                    // rr has { resource_id, quantity }
+                    // We need to match rr.resource_id with our resourceIds
+
+                    // Note: Supabase returns resource_id as string/uuid usually
+                    // Let's coerce to String for safety
+                    const conflictResId = String((rr as any).resource_id);
+
+                    if (resourceIds.includes(conflictResId)) {
+                        const current = usageMap.get(conflictResId) || 0;
+                        const qty = (rr as any).quantity || 1;
+                        usageMap.set(conflictResId, current + qty);
+                    }
                 }
             }
         }
@@ -101,8 +113,15 @@ export async function checkAvailability(
 
     // 5. Check against capacity
     for (const req of resources) {
-        const info = resourceInfos.find((r) => r.id === req.resource_id)!;
-        const used = usageMap.get(req.resource_id) || 0;
+        const reqId = String(req.resource_id);
+        const info = resourceInfos.find((r) => String(r.id) === reqId);
+
+        if (!info) {
+            console.error(`Resource info not found for ${reqId}`);
+            return { available: false, reason: 'Invalid resource ID' };
+        }
+
+        const used = usageMap.get(reqId) || 0;
         const requested = req.quantity;
 
         if (used + requested > info.capacity) {
