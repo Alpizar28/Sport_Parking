@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { getVenueDateString } from '@/lib/time';
+import { TZ_VENUE } from '@/lib/constants';
 
 type DatePickerProps = {
     selectedDate: string; // YYYY-MM-DD
@@ -13,6 +15,7 @@ export default function DatePicker({ selectedDate, onChange }: DatePickerProps) 
 
     useEffect(() => {
         if (selectedDate) {
+            // Safe parse for display
             setCurrentMonth(new Date(`${selectedDate}T12:00:00`));
         }
     }, [selectedDate]);
@@ -25,7 +28,14 @@ export default function DatePicker({ selectedDate, onChange }: DatePickerProps) 
     const days = daysInMonth(year, month);
     const startDay = startDayOfMonth(year, month);
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    // Use Venue Timezone for "Today"
+    const todayStr = getVenueDateString();
+
+    console.log('[DatePicker DEBUG]', {
+        TZ_VENUE,
+        todayStr,
+        selectedDate
+    });
 
     // Localized Month Names
     const monthNames = [

@@ -479,9 +479,11 @@ export default function ReservationFlow({ initialType }: Props) {
                             onChange={setStartHour}
                             onDurationChange={setDuration}
                             busyHours={[]}
-                            selectedDate={date}
+                            selectedDate={date!}
                             slotStatuses={aggregatedSlots}
                         />
+
+
                         <div className="text-xs text-center text-muted-foreground mt-4 italic max-w-md mx-auto">
                             * Los colores indican la disponibilidad general. Podrás elegir tu cancha específica en el siguiente paso.
                         </div>
