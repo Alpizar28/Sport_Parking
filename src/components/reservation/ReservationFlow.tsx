@@ -108,7 +108,7 @@ export default function ReservationFlow({ initialType }: Props) {
         if (currentStep === 4 && selectedResources.length === 0) return alert("Selecciona al menos un recurso");
 
         if (currentStep < 5) setCurrentStep(c => c + 1);
-        else handleCreateHold();
+        // Step 5 submit is handled by separate button
     };
 
     const handleBack = () => {
@@ -117,29 +117,53 @@ export default function ReservationFlow({ initialType }: Props) {
     };
 
 
-    const handleCreateHold = async () => {
-        setLoading(true);
-        setError(null);
-
-        // Security: Refresh availability before confirming
-        try {
-            const resRev = await fetch(`/api/availability?date=${date}`);
-            const dataRev = await resRev.json();
-            if (dataRev.resources) {
-                setResourcesData(dataRev.resources);
-
-                // Optional: Check if selected resources are still available in the new data
-                // This is a client-side convenience check. The backend will enforce it anyway.
-            }
-        } catch (e) {
-            console.error("Failed to refresh availability", e);
-            // Continue anyway, backend is source of truth
+    // Helper to check resource availability for current selection
+    const isResourceAvailable = (res: Resource, startH: number, dur: number) => {
+        for (let i = 0; i < dur; i++) {
+            const timeLabel = `${(startH + i).toString().padStart(2, '0')}:00`;
+            const slot = res.slots?.find(s => s.time === timeLabel);
+            if (!slot || slot.status !== 'AVAILABLE') return false;
         }
+        return true;
+    };
 
-        // Timestamps
 
+
+    // Auto-prune on data refresh
+    useEffect(() => {
+        if (!startHour || !resourcesData.length) return;
+
+        const validResources = selectedResources.filter(sel => {
+            const res = resourcesData.find(r => r.resource_id === sel.resource_id);
+            if (!res) return false; // Resource disappeared?
+            return isResourceAvailable(res, startHour, duration);
+        });
+
+        if (validResources.length !== selectedResources.length) {
+            setSelectedResources(validResources);
+            // Optionally notify user
+            // setError("Algunos recursos seleccionados ya no están disponibles."); // Maybe too intrusive?
+        }
+    }, [resourcesData, startHour, duration]);
+
+    const handleConfirmReservation = async () => {
+        if (!date || startHour === null) return;
 
         try {
+            setLoading(true);
+            setError(null);
+
+            // Security: Refresh availability before confirming
+            try {
+                const resRev = await fetch(`/api/availability?date=${date}`);
+                const dataRev = await resRev.json();
+                if (dataRev.resources) {
+                    setResourcesData(dataRev.resources);
+                }
+            } catch (e) {
+                console.error("Failed to refresh availability", e);
+            }
+
             const res = await fetch('/api/reservations/hold', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -156,6 +180,19 @@ export default function ReservationFlow({ initialType }: Props) {
             const data = await res.json();
 
             if (!res.ok) {
+                // Handle Conflict specifically
+                if (res.status === 409) {
+                    // Refetch to update UI
+                    fetchAvailability();
+                    // Go back to resource selection
+                    setCurrentStep(4);
+
+                    // Pruning happens automatically via useEffect, or we clear explicitly?
+                    // Better to clear if conflict to ensure user re-selects consciously
+                    setSelectedResources([]);
+
+                    throw new Error('La disponibilidad ha cambiado. Por favor selecciona otro recurso.');
+                }
                 throw new Error(data.error?.message || 'Error creating hold');
             }
 
@@ -173,10 +210,23 @@ export default function ReservationFlow({ initialType }: Props) {
 
     const toggleResource = (resId: string) => {
         const exists = selectedResources.find(r => r.resource_id === resId);
-        if (exists) {
-            setSelectedResources(selectedResources.filter(r => r.resource_id !== resId));
+
+        if (reservationType === 'FIELD') {
+            // SINGLE SELECT mode for FIELD
+            if (exists) {
+                // Deselect if clicking same
+                setSelectedResources([]);
+            } else {
+                // Replace any existing with new one
+                setSelectedResources([{ resource_id: resId, quantity: 1 }]);
+            }
         } else {
-            setSelectedResources([...selectedResources, { resource_id: resId, quantity: 1 }]);
+            // Multi-select for TABLE_ROW
+            if (exists) {
+                setSelectedResources(selectedResources.filter(r => r.resource_id !== resId));
+            } else {
+                setSelectedResources([...selectedResources, { resource_id: resId, quantity: 1 }]);
+            }
         }
     };
 
@@ -693,7 +743,7 @@ export default function ReservationFlow({ initialType }: Props) {
                             {currentStep === 1 ? 'Cancelar' : 'Atrás'}
                         </button>
                         <button
-                            onClick={handleNext}
+                            onClick={currentStep === 5 ? handleConfirmReservation : handleNext}
                             disabled={loading || (currentStep === 2 && !date) || (currentStep === 3 && !startHour) || (currentStep === 4 && selectedResources.length === 0)}
                             className={`flex-[2] py-4 px-6 rounded-sm font-bold text-primary-foreground uppercase tracking-widest text-sm shadow-[0_0_20px_-5px_rgba(16,185,129,0.3)] transition-all transform active:scale-95 disabled:opacity-50 disabled:scale-100 ${loading ? 'bg-primary/50 cursor-not-allowed' : 'bg-primary hover:bg-emerald-400 hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.5)]'
                                 }`}
