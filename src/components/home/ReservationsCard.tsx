@@ -111,7 +111,7 @@ export default function ReservationsCard({ user, reservations }: ReservationsCar
 
     // 3. LOGGED IN WITH RESERVATIONS
     return (
-        <div className="relative bg-[#0a0a0a] border border-emerald-500/30 rounded-2xl p-6 overflow-hidden flex flex-col max-h-[500px]">
+        <div className="relative bg-[#0a0a0a] border border-emerald-500/30 rounded-2xl p-6 overflow-hidden flex flex-col h-full max-h-[500px]">
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/5 flex-shrink-0">
                 <span className="text-sm font-bold uppercase text-white tracking-widest flex items-center gap-2">
                     <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
@@ -125,7 +125,6 @@ export default function ReservationsCard({ user, reservations }: ReservationsCar
                     <div key={res.id} className="flex items-center gap-4 p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all group">
                         {/* Date Box */}
                         <div className="flex-shrink-0 text-center w-12 bg-black/40 rounded-lg p-2 border border-white/5 group-hover:border-primary/30 transition-colors">
-                            <span className="block text-[9px] text-muted-foreground font-bold uppercase">{new Date(res.start_time).toLocaleDateString('es-ES', { weekday: 'short' }).slice(0, 3)}</span>
                             <span className="block text-[9px] text-muted-foreground font-bold uppercase">{new Date(res.start_time).toLocaleDateString('es-ES', { weekday: 'short' }).slice(0, 3)}</span>
                             <span className="block text-lg font-black text-white leading-none">{new Date(res.start_time).getDate()}</span>
                         </div>

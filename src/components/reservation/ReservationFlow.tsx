@@ -227,17 +227,10 @@ export default function ReservationFlow() {
                         </p>
 
                         <button
-                            onClick={() => {
-                                setIsSuccess(false);
-                                setCurrentStep(1);
-                                setStartHour(null);
-                                setSelectedResources([]);
-                                setConfirmedReservation(null);
-                                fetchAvailability();
-                            }}
-                            className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold uppercase tracking-widest rounded-lg transition-all"
+                            onClick={() => router.push('/dashboard')}
+                            className="w-full py-4 bg-primary hover:bg-emerald-400 text-black font-bold uppercase tracking-widest rounded-lg transition-all shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
                         >
-                            Reservar Nuevamente
+                            Ver Mis Reservas
                         </button>
                     </div>
                 </div>

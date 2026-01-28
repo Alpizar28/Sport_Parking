@@ -118,7 +118,7 @@ export default async function Home() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-900/40 via-black to-black opacity-80" />
           <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-10" />
 
-          <div className="relative z-10 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center pt-20">
+          <div className="relative z-10 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start lg:items-center pt-20 pb-12">
             <div className="space-y-8">
 
 
@@ -145,7 +145,7 @@ export default async function Home() {
             </div>
 
             {/* Right Side Visual / Agenda Preview */}
-            <div className="hidden lg:flex flex-col gap-6 relative h-[600px]">
+            <div className="flex flex-col gap-6 relative min-h-[400px] lg:h-[600px]">
               <ReservationsCard user={user} reservations={userReservations} />
             </div>
           </div>
